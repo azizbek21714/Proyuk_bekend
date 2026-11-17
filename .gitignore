@@ -1,0 +1,26 @@
+# Python muhiti va kesh
+venv/
+venv_old/
+.venv/
+__pycache__/
+*.py[cod]
+
+# Ma'lumotlar bazasi va uning zaxiralari (shaxsiy ma'lumotlar — repoga qo'shilmaydi)
+*.sqlite3
+*.sqlite3.*
+db.sqlite3*
+
+# Maxfiy sozlamalar
+.env
+
+# Yuklangan fayllar va yig'ilgan statik fayllar
+media/
+staticfiles/
+
+# Loglar
+*.log
+
+# Loyihaga tegishli bo'lmagan papkalar
+publish_ProYuk/
+dgu_artifacts/
+.claude/
