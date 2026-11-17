@@ -1,0 +1,2 @@
+# Render (Linux) bash skriptlarni LF qator oxiri bilan kutadi
+*.sh text eol=lf

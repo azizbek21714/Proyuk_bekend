@@ -25,14 +25,19 @@ if not DEBUG:
     if not os.environ.get('DATABASE_URL'):
         raise ImproperlyConfigured('Production uchun DATABASE_URL majburiy.')
 
-ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+def _clean_list(values):
+    """Bo'sh qoldirilgan muhit o'zgaruvchisi [''] bo'lib kelmasin."""
+    return [v.strip() for v in values if v and v.strip()]
+
+
+ALLOWED_HOSTS = _clean_list(env('ALLOWED_HOSTS'))
 # Render'da xizmatning o'z manzili avtomatik ruxsat etiladi
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 # HTTPS orqali Django admin formalari uchun (masalan https://proyuk.onrender.com)
-CSRF_TRUSTED_ORIGINS = env('CSRF_TRUSTED_ORIGINS')
+CSRF_TRUSTED_ORIGINS = _clean_list(env('CSRF_TRUSTED_ORIGINS'))
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
@@ -153,11 +158,13 @@ SIMPLE_JWT = {
 }
 
 # CORS
-CORS_ALLOWED_ORIGINS = env('CORS_ALLOWED_ORIGINS')
+CORS_ALLOWED_ORIGINS = _clean_list(env('CORS_ALLOWED_ORIGINS'))
 CORS_ALLOW_CREDENTIALS = True
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
+    # Render health check ichki tarmoqdan oddiy HTTP orqali keladi
+    SECURE_REDIRECT_EXEMPT = [r'^api/health$']
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

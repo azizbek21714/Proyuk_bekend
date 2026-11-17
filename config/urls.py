@@ -2,9 +2,17 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.http import JsonResponse
 from config.dashboard_urls import teacher_urlpatterns
 
+
+def health(request):
+    """Render health check: server ishlayotganini bildiradi (login talab qilinmaydi)."""
+    return JsonResponse({'status': 'ok'})
+
+
 urlpatterns = [
+    path('api/health', health),
     path('admin/', admin.site.urls),
 
     # Authentication
