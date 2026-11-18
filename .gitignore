@@ -32,3 +32,6 @@ tools/golden/responses/
 
 # Lokal JSON store (Firestore o'rnida)
 .localstore.json
+
+# Render uchun haqiqiy qiymatlar (vaqtinchalik, GitHubga yuborilmaydi)
+render.env.txt
