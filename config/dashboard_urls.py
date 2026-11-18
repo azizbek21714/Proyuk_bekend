@@ -5,7 +5,6 @@ from rest_framework.response import Response
 
 from decimal import Decimal
 
-from django.db.models import Sum
 from django.utils import timezone
 
 from apps.teachers.models import Teacher
@@ -36,15 +35,13 @@ def stats(request):
     rejalar = Reja.objects.select_related('teacher').all()
 
     # DL/MD biriktirma soatlari (o'qituvchi bo'yicha)
-    dlmd_map = {
-        (row['teacher_id'], row['oquv_yili']): row['s'] or 0
-        for row in DlMdBiriktirma.objects.values('teacher_id', 'oquv_yili').annotate(s=Sum('jami_soat'))
-    }
-    legacy_dlmd_map = {
-        row['teacher_id']: row['s'] or 0
-        for row in DlMdBiriktirma.objects.filter(oquv_yili='')
-        .values('teacher_id').annotate(s=Sum('jami_soat'))
-    }
+    dlmd_map = {}
+    legacy_dlmd_map = {}
+    for entry in DlMdBiriktirma.objects.all():
+        key = (entry.teacher_id, entry.oquv_yili)
+        dlmd_map[key] = dlmd_map.get(key, 0) + (entry.jami_soat or 0)
+        if entry.oquv_yili == '':
+            legacy_dlmd_map[entry.teacher_id] = legacy_dlmd_map.get(entry.teacher_id, 0) + (entry.jami_soat or 0)
 
     bar = []
     past_count = 0
@@ -121,7 +118,7 @@ def teacher_dashboard(request):
         )
         return Response(RejaSerializer(reja).data)
     if request.method == 'PATCH':
-        from apps.workload.models import Assignment
+        from apps.workload.models import Assignment, LESSON_TYPE_CHOICES
         from django.shortcuts import get_object_or_404
         from rest_framework import serializers
         if request.data.get('action') == 'save_personal_plan':
@@ -156,7 +153,7 @@ def teacher_dashboard(request):
             payload = PersonalPlanInput(data=request.data)
             payload.is_valid(raise_exception=True)
             teacher = getattr(request.user, 'teacher_profile', None)
-            reja = get_object_or_404(Reja, pk=payload.validated_data['rejaId'], teacher=teacher)
+            reja = get_object_or_404(Reja.objects.all(), pk=payload.validated_data['rejaId'], teacher=teacher)
             teacher_rate = teacher.rate
             allowed_rates = ('rate_1', 'rate_0_5') if teacher_rate == 'rate_1_5' else (
                 ('rate_0_25',) if '0_25' in teacher_rate else
@@ -194,7 +191,7 @@ def teacher_dashboard(request):
 
         class LessonTypeInput(serializers.Serializer):
             id = serializers.IntegerField(min_value=1)
-            mashgulotTuri = serializers.ChoiceField(choices=Assignment._meta.get_field('lesson_type').choices, allow_blank=True)
+            mashgulotTuri = serializers.ChoiceField(choices=LESSON_TYPE_CHOICES, allow_blank=True)
         data = LessonTypeInput(data=request.data)
         data.is_valid(raise_exception=True)
         item = get_object_or_404(Assignment.objects.select_related('reja'),

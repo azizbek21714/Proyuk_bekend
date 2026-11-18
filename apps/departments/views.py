@@ -1,11 +1,12 @@
-from rest_framework import viewsets, status
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from apps.core.drf import ODMModelViewSet
 from .models import OTM, Faculty, Department
 from .serializers import OTMSerializer, FacultySerializer, DepartmentSerializer
 
 
-class OTMViewSet(viewsets.ModelViewSet):
+class OTMViewSet(ODMModelViewSet):
     queryset = OTM.objects.all()
     serializer_class = OTMSerializer
 
@@ -69,7 +70,7 @@ class OTMViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
-class FacultyViewSet(viewsets.ModelViewSet):
+class FacultyViewSet(ODMModelViewSet):
     queryset = Faculty.objects.select_related('otm', 'dean').all()
     serializer_class = FacultySerializer
 
@@ -81,7 +82,7 @@ class FacultyViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
+class DepartmentViewSet(ODMModelViewSet):
     queryset = Department.objects.select_related('faculty', 'head_of_department').prefetch_related('teachers').all()
     serializer_class = DepartmentSerializer
 

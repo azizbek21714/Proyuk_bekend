@@ -6,7 +6,7 @@ def is_application_admin(user):
     return bool(
         user
         and user.is_authenticated
-        and (user.is_superuser or user.groups.filter(name='admin').exists())
+        and (user.is_superuser or 'admin' in (getattr(user, 'groups', None) or []))
     )
 
 

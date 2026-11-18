@@ -24,3 +24,11 @@ staticfiles/
 publish_ProYuk/
 dgu_artifacts/
 .claude/
+
+# Golden test data (derived from real data, kept local)
+tools/golden/golden.sqlite3
+tools/golden/fixture.xlsx
+tools/golden/responses/
+
+# Lokal JSON store (Firestore o'rnida)
+.localstore.json

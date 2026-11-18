@@ -1,17 +1,17 @@
 from django.urls import path
-from django.contrib.auth.models import User
-from django.contrib.auth import authenticate
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from hashlib import sha256
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.decorators import throttle_classes
+from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework import serializers, status
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenRefreshView
+from apps.accounts import tokens as jwt_tokens
+from apps.accounts.models import User
+from apps.core.odm import atomic
 from config.permissions import is_application_admin, IsApplicationAdmin
 from config.throttles import AuthenticationRateThrottle
 
@@ -33,11 +33,7 @@ class SignupSerializer(LoginSerializer):
 
 
 def _tokens(user):
-    refresh = RefreshToken.for_user(user)
-    return {
-        'access': str(refresh.access_token),
-        'refresh': str(refresh),
-    }
+    return jwt_tokens.tokens_for_user(user)
 
 
 def _user_data(user):
@@ -55,7 +51,7 @@ def _user_data(user):
         pass
     role = 'admin' if is_application_admin(user) else 'oqituvchi'
     if role != 'admin':
-        assigned_roles = set(user.groups.values_list('name', flat=True))
+        assigned_roles = set(user.groups or [])
         role = next((name for name in ('oquv_bolimi', 'dekan', 'kafedra_mudiri') if name in assigned_roles), role)
     return {
         'id': user.id,
@@ -94,7 +90,7 @@ def signup(request):
         return Response({'password': exc.messages}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        with transaction.atomic():
+        with atomic():
             user = User.objects.create_user(
                 username=username,
                 email=email,
@@ -131,7 +127,7 @@ def login(request):
         # Keep password hashing work for unknown accounts as well.
         User().set_password(password)
         return Response({'detail': "Elektron pochta yoki parol noto'g'ri."}, status=status.HTTP_401_UNAUTHORIZED)
-    user = authenticate(request, username=account.username, password=password)
+    user = account if account.check_password(password) and account.is_active else None
     if user is None:
         return Response({'detail': "Elektron pochta yoki parol noto'g'ri."}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -156,8 +152,7 @@ def logout(request):
     refresh_token = request.data.get('refresh')
     if refresh_token:
         try:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            jwt_tokens.blacklist(jwt_tokens.decode(str(refresh_token), 'refresh'))
         except Exception:
             pass
     return Response({'detail': 'Muvaffaqiyatli chiqildi.'})
@@ -204,7 +199,10 @@ def reset_password(request):
 
     users = User.objects.all()
     if user_id:
-        users = users.filter(pk=user_id)
+        try:
+            users = users.filter(pk=int(user_id))
+        except (TypeError, ValueError):
+            users = users.filter_fn(lambda u: False)
     elif username:
         users = users.filter(username=username)
     else:
@@ -220,6 +218,36 @@ def reset_password(request):
     user.set_password(new_password)
     user.save()
     return Response({'detail': 'Parol muvaffaqiyatli tiklandi.'})
+
+
+class TokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+
+class TokenRefreshView(APIView):
+    """Same behaviour as simplejwt's TokenRefreshView (rotation + blacklist)."""
+    authentication_classes = ()
+    permission_classes = (AllowAny,)
+    www_authenticate_realm = 'api'
+
+    def get_authenticate_header(self, request):
+        return f'Bearer realm="{self.www_authenticate_realm}"'
+
+    def post(self, request, *args, **kwargs):
+        serializer = TokenRefreshSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            payload = jwt_tokens.verify_refresh(serializer.validated_data['refresh'])
+        except jwt_tokens.TokenError as exc:
+            raise jwt_tokens.InvalidToken(str(exc)) from None
+        try:
+            user = User.objects.filter(pk=int(payload.get('user_id'))).first()
+        except (TypeError, ValueError):
+            user = None
+        if user is None or not user.is_active:
+            raise jwt_tokens.AuthenticationFailed(
+                'No active account found with the given credentials', code='no_active_account')
+        return Response(jwt_tokens.rotate(payload))
 
 
 urlpatterns = [

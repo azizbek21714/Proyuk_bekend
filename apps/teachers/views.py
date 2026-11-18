@@ -1,10 +1,10 @@
-from rest_framework import viewsets
+from apps.core.drf import ODMModelViewSet
 from .models import Teacher
 from .serializers import TeacherSerializer
 from config.permissions import limit_to_own
 
 
-class TeacherViewSet(viewsets.ModelViewSet):
+class TeacherViewSet(ODMModelViewSet):
     queryset = Teacher.objects.all()
     serializer_class = TeacherSerializer
 

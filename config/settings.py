@@ -7,7 +7,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, True),
-    DATABASE_URL=(str, f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
     ALLOWED_HOSTS=(list, ['localhost', '127.0.0.1']),
     CORS_ALLOWED_ORIGINS=(list, ['http://localhost:3000']),
     CSRF_TRUSTED_ORIGINS=(list, []),
@@ -19,11 +18,14 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-change-me-in-production'
 
 DEBUG = env('DEBUG')
 
+# Saqlash joyi: firestore | jsonfile (lokal fayl) | memory (testlar)
+STORE_BACKEND = env('STORE_BACKEND', default='jsonfile' if DEBUG else 'firestore')
+
 if not DEBUG:
     if SECRET_KEY == 'django-insecure-change-me-in-production':
         raise ImproperlyConfigured('Production uchun SECRET_KEY majburiy.')
-    if not os.environ.get('DATABASE_URL'):
-        raise ImproperlyConfigured('Production uchun DATABASE_URL majburiy.')
+    if STORE_BACKEND == 'firestore' and not os.environ.get('FIREBASE_CREDENTIALS'):
+        raise ImproperlyConfigured('Production uchun FIREBASE_CREDENTIALS majburiy.')
 
 def _clean_list(values):
     """Bo'sh qoldirilgan muhit o'zgaruvchisi [''] bo'lib kelmasin."""
@@ -36,26 +38,24 @@ RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
-# HTTPS orqali Django admin formalari uchun (masalan https://proyuk.onrender.com)
+# HTTPS orqali formalar uchun (masalan https://proyuk.onrender.com)
 CSRF_TRUSTED_ORIGINS = _clean_list(env('CSRF_TRUSTED_ORIGINS'))
 if RENDER_EXTERNAL_HOSTNAME:
     CSRF_TRUSTED_ORIGINS.append(f'https://{RENDER_EXTERNAL_HOSTNAME}')
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    # auth: faqat parol xeshlash/validatsiya va AnonymousUser uchun (bazasiz)
     'django.contrib.auth',
     'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
     'django.contrib.staticfiles',
 
     # Third-party
     'rest_framework',
-    'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
 
     # Local apps
+    'apps.core',
+    'apps.accounts',
     'apps.teachers',
     'apps.departments',
     'apps.academics',
@@ -66,12 +66,9 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     # Statik fayllarni (Django admin) gunicorn orqali beradi
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
+    'apps.core.middleware.StoreRequestCacheMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -86,8 +83,6 @@ TEMPLATES = [
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
             ],
         },
     },
@@ -95,9 +90,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-DATABASES = {
-    'default': env.db('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
-}
+# Ma'lumotlar Firestore'da (yoki lokal JSON faylda) — SQL baza ishlatilmaydi
+DATABASES = {}
+
+STORE_JSON_PATH = env('STORE_JSON_PATH', default=str(BASE_DIR / '.localstore.json'))
+FIREBASE_PROJECT_ID = env('FIREBASE_PROJECT_ID', default='')
+FIRESTORE_DATABASE = env('FIRESTORE_DATABASE', default='(default)')
+# Sessiya ishlatilmaydi (JWT); test klienti uchun bazasiz dvigatel
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -124,12 +124,10 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'apps.accounts.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'config.permissions.IsApplicationAdminOrAuthenticatedReadOnly',
@@ -144,18 +142,7 @@ REST_FRAMEWORK = {
     },
 }
 
-# Simple JWT
-from datetime import timedelta
-
-SIMPLE_JWT = {
-    # Access token muddati cookie/sessiya bilan moslangan (7 kun) — aks holda
-    # 60 daqiqadan keyin barcha so'rovlar 401 berib, foydalanuvchi tashlab ketilardi.
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-}
+# JWT: apps/accounts/tokens.py (access 1 soat, refresh 30 kun, rotatsiya + blacklist)
 
 # CORS
 CORS_ALLOWED_ORIGINS = _clean_list(env('CORS_ALLOWED_ORIGINS'))
@@ -169,7 +156,6 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-    SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
 # Logging — lokal app loglari (Excel o'qish va h.k.) konsolga chiqsin

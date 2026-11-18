@@ -1,6 +1,4 @@
 """Teacher dashboard derived from the authenticated user's assigned workload."""
-from django.db.models import Q
-
 from apps.teachers.models import Teacher
 from .models import DlMdBiriktirma, PositionNorm
 from .norms import default_position_norm, scaled_position_norm
@@ -77,8 +75,8 @@ def teacher_dashboard_data(user):
 
     # Eski DL/MD yozuvlarida o'quv yili bo'sh saqlangan. Shaxsiy ish reja ham
     # ularni ko'rsatadi, shuning uchun profil jami ham joriy yil + bo'sh yilni oladi.
-    dlmd_entries = DlMdBiriktirma.objects.filter(teacher=teacher).filter(
-        Q(oquv_yili=reja.oquv_yili) | Q(oquv_yili='')
+    dlmd_entries = DlMdBiriktirma.objects.filter(teacher=teacher).filter_fn(
+        lambda entry: entry.oquv_yili in (reja.oquv_yili, '')
     )
     dlmd_total = 0
     for entry in dlmd_entries:

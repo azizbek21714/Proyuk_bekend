@@ -1,4 +1,8 @@
 from rest_framework import serializers
+from rest_framework.validators import UniqueTogetherValidator, UniqueValidator
+
+from apps.academics.models import Dak, DlMd, Group, Subject
+from apps.core.drf import ODMSerializer
 from .models import (
     Yuklama, Reja, DlMdBiriktirma, AcademicYear,
     WorkloadType, WorkloadNorm, Assignment, Approval,
@@ -9,8 +13,9 @@ from apps.teachers.models import Teacher
 from apps.departments.models import Department
 
 
-class DlMdBiriktirmaSerializer(serializers.ModelSerializer):
+class DlMdBiriktirmaSerializer(ODMSerializer):
     """DL/MD biriktirma — frontend camelCase nomlari bilan."""
+    id = serializers.IntegerField(label='ID', read_only=True)
     oqituvchiId = serializers.PrimaryKeyRelatedField(source='teacher', queryset=Teacher.objects.all())
     kafedraId = serializers.PrimaryKeyRelatedField(source='department', queryset=Department.objects.all())
     talimShakli = serializers.CharField(source='talim_shakli', required=False, allow_blank=True)
@@ -22,6 +27,9 @@ class DlMdBiriktirmaSerializer(serializers.ModelSerializer):
     updatedAt = serializers.DateTimeField(source='edited_at', read_only=True)
     oqituvchi = serializers.SerializerMethodField(read_only=True)
     kafedra = serializers.SerializerMethodField(read_only=True)
+    # Model maydonlari (ModelSerializer avtomatik qo'shgan ko'rinishda)
+    tur = serializers.CharField(max_length=10, required=False)
+    semestr = serializers.CharField(max_length=10, required=False)
 
     class Meta:
         model = DlMdBiriktirma
@@ -53,10 +61,11 @@ class DlMdBiriktirmaSerializer(serializers.ModelSerializer):
         }
 
 
-class YuklamaSerializer(serializers.ModelSerializer):
+class YuklamaSerializer(ODMSerializer):
     # O'qishda bog'liq jadvallarning to'liq ma'lumoti (nested, read-only).
     # Yozishda esa oddiy PK maydonlari (subject, group, dak, dl_md, department)
     # '__all__' orqali ishlatiladi.
+    id = serializers.IntegerField(label='ID', read_only=True)
     subject = SubjectSerializer(read_only=True)
     group = GroupSerializer(read_only=True)
     dak = DakSerializer(read_only=True)
@@ -65,29 +74,36 @@ class YuklamaSerializer(serializers.ModelSerializer):
 
     # Yozish uchun PK maydonlari (subject_id=..., group_id=... ko'rinishida)
     subject_id = serializers.PrimaryKeyRelatedField(
-        source='subject', queryset=Yuklama._meta.get_field('subject').related_model.objects.all(),
+        source='subject', queryset=Subject.objects.all(),
         required=False, allow_null=True, write_only=True,
     )
     group_id = serializers.PrimaryKeyRelatedField(
-        source='group', queryset=Yuklama._meta.get_field('group').related_model.objects.all(),
+        source='group', queryset=Group.objects.all(),
         required=False, allow_null=True, write_only=True,
     )
     dak_id = serializers.PrimaryKeyRelatedField(
-        source='dak', queryset=Yuklama._meta.get_field('dak').related_model.objects.all(),
+        source='dak', queryset=Dak.objects.all(),
         required=False, allow_null=True, write_only=True,
     )
     dl_md_id = serializers.PrimaryKeyRelatedField(
-        source='dl_md', queryset=Yuklama._meta.get_field('dl_md').related_model.objects.all(),
+        source='dl_md', queryset=DlMd.objects.all(),
         required=False, allow_null=True, write_only=True,
     )
     department_id = serializers.PrimaryKeyRelatedField(
-        source='department', queryset=Yuklama._meta.get_field('department').related_model.objects.all(),
+        source='department', queryset=Department.objects.all(),
         required=False, allow_null=True, write_only=True,
     )
 
+    name = serializers.CharField(max_length=255)
+    file = serializers.FileField(allow_null=True, max_length=100, required=False)
+    groups_count = serializers.IntegerField(required=False)
+    thread_count = serializers.IntegerField(required=False)
+    control = serializers.IntegerField(required=False)
+    edited_at = serializers.DateTimeField(read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
     class Meta:
         model = Yuklama
-        fields = '__all__'
 
     def get_department(self, obj):
         d = obj.department
@@ -96,13 +112,20 @@ class YuklamaSerializer(serializers.ModelSerializer):
         return {'id': d.id, 'nomi': d.name, 'faculty_id': d.faculty_id}
 
 
-class AcademicYearSerializer(serializers.ModelSerializer):
+class AcademicYearSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
+    name = serializers.CharField(max_length=20, validators=[UniqueValidator(
+        queryset=AcademicYear.objects.all(), message='academic year with this name already exists.')])
+    starts_on = serializers.DateField()
+    ends_on = serializers.DateField()
+    is_active = serializers.BooleanField(required=False)
+
     class Meta:
         model = AcademicYear
-        fields = ['id', 'name', 'starts_on', 'ends_on', 'is_active']
 
 
-class WorkloadTypeSerializer(serializers.ModelSerializer):
+class WorkloadTypeSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
     bandRaqami = serializers.IntegerField(source='clause_number')
     kod = serializers.CharField(source='code')
     nomi = serializers.CharField(source='name')
@@ -117,7 +140,8 @@ class WorkloadTypeSerializer(serializers.ModelSerializer):
                   'hisobSoatbay', 'faol', 'normativlarSoni']
 
 
-class WorkloadNormSerializer(serializers.ModelSerializer):
+class WorkloadNormSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
     yuklamaTuriId = serializers.PrimaryKeyRelatedField(
         source='workload_type', queryset=WorkloadType.objects.all(),
     )
@@ -150,7 +174,8 @@ class WorkloadNormSerializer(serializers.ModelSerializer):
         return value or ''
 
 
-class PositionNormSerializer(serializers.ModelSerializer):
+class PositionNormSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
     oquvYili = serializers.CharField(source='academic_year.name', read_only=True)
     lavozim = serializers.CharField(source='position')
     minimum = serializers.IntegerField(source='minimum_hours')
@@ -161,11 +186,12 @@ class PositionNormSerializer(serializers.ModelSerializer):
         fields = ['id', 'lavozim', 'oquvYili', 'minimum', 'maximum']
 
 
-class AssignmentSerializer(serializers.ModelSerializer):
+class AssignmentSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
     rejaId = serializers.PrimaryKeyRelatedField(source='reja', queryset=Reja.objects.all())
     yuklamaTuriId = serializers.PrimaryKeyRelatedField(source='workload_type', queryset=WorkloadType.objects.all())
-    fanId = serializers.PrimaryKeyRelatedField(source='subject', queryset=Yuklama._meta.get_field('subject').related_model.objects.all(), allow_null=True, required=False)
-    guruhId = serializers.PrimaryKeyRelatedField(source='group', queryset=Yuklama._meta.get_field('group').related_model.objects.all(), allow_null=True, required=False)
+    fanId = serializers.PrimaryKeyRelatedField(source='subject', queryset=Subject.objects.all(), allow_null=True, required=False)
+    guruhId = serializers.PrimaryKeyRelatedField(source='group', queryset=Group.objects.all(), allow_null=True, required=False)
     semesterRaqami = serializers.IntegerField(source='semester_number')
     soat = serializers.FloatField(source='hours')
     hisobTuri = serializers.CharField(source='calculation_type', required=False)
@@ -186,7 +212,8 @@ class AssignmentSerializer(serializers.ModelSerializer):
         return value or ''
 
 
-class ApprovalSerializer(serializers.ModelSerializer):
+class ApprovalSerializer(ODMSerializer):
+    id = serializers.IntegerField(label='ID', read_only=True)
     rejaId = serializers.PrimaryKeyRelatedField(source='reja', queryset=Reja.objects.all())
     bosqich = serializers.CharField(source='stage')
     holat = serializers.CharField(source='state', required=False)
@@ -211,8 +238,9 @@ _TURI_FIELDS = [
 ]
 
 
-class RejaSerializer(serializers.ModelSerializer):
+class RejaSerializer(ODMSerializer):
     # Frontend camelCase nomlari bilan ishlaydi
+    id = serializers.IntegerField(label='ID', read_only=True)
     oqituvchiId = serializers.PrimaryKeyRelatedField(
         source='teacher', queryset=Teacher.objects.all(), required=False, allow_null=True,
     )
@@ -227,9 +255,14 @@ class RejaSerializer(serializers.ModelSerializer):
     kafedraId = serializers.SerializerMethodField(read_only=True)
     topshiriqlar = serializers.SerializerMethodField(read_only=True)
     data = serializers.JSONField(required=False)
+    status = serializers.CharField(max_length=30, required=False)
+    created_at = serializers.DateTimeField(read_only=True)
+    edited_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = Reja
+        # Bitta o'qituvchiga bitta o'quv yili uchun bitta reja
+        validators = [UniqueTogetherValidator(queryset=Reja.objects.all(), fields=('oqituvchiId', 'oquvYiliNomi'))]
         fields = ['id', 'oqituvchiId', 'departmentId', 'kafedraId', 'oquvYiliNomi',
                   'jamiSoat', 'status', 'fio', 'oqituvchi', 'topshiriqlar', 'data',
                   'created_at', 'edited_at']

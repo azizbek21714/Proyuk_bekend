@@ -1,4 +1,4 @@
-from rest_framework import viewsets
+from apps.core.drf import ODMModelViewSet
 from .models import Subject, Group, DlMd
 from .serializers import (
     SubjectSerializer,
@@ -7,7 +7,7 @@ from .serializers import (
 )
 
 
-class SubjectViewSet(viewsets.ModelViewSet):
+class SubjectViewSet(ODMModelViewSet):
     queryset = Subject.objects.all()
     serializer_class = SubjectSerializer
 
@@ -19,7 +19,7 @@ class SubjectViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class GroupViewSet(viewsets.ModelViewSet):
+class GroupViewSet(ODMModelViewSet):
     queryset = Group.objects.all()
     serializer_class = GroupSerializer
 
@@ -38,6 +38,6 @@ class GroupViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class DlMdViewSet(viewsets.ModelViewSet):
+class DlMdViewSet(ODMModelViewSet):
     queryset = DlMd.objects.all()
     serializer_class = DlMdSerializer

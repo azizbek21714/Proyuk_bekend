@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from apps.core.odm import atomic
 
 from apps.academics.models import Subject
 from .models import Assignment, WorkloadType
@@ -37,7 +37,7 @@ def reja_fan_hours(reja):
     return total
 
 
-@transaction.atomic
+@atomic
 def sync_reja_assignments(reja):
     """Normalize the teaching assignments embedded by the current UI into rows."""
     workload_type, _ = WorkloadType.objects.get_or_create(

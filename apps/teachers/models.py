@@ -1,5 +1,6 @@
 from django.db import models
-from django.db.models.functions import Lower
+
+from apps.core import odm
 
 
 class TeacherPosition(models.TextChoices):
@@ -40,92 +41,26 @@ class TeacherRate(models.TextChoices):
     RATE_0_25 = 'rate_0_25', '0.25 stavka'
 
 
-class Teacher(models.Model):
-    user = models.OneToOneField(
-        'auth.User', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='teacher_profile',
-    )
-    full_name = models.CharField(max_length=255)
-    position = models.CharField(
-        max_length=50,
-        choices=TeacherPosition.choices,
-        default=TeacherPosition.TEACHER,
-    )
-    degree = models.CharField(
-        max_length=50,
-        choices=TeacherDegree.choices,
-        default=TeacherDegree.BACHELOR,
-    )
-    academic_title = models.CharField(
-        max_length=50,
-        choices=AcademicTitle.choices,
-        default=AcademicTitle.NONE,
-    )
-    speciality = models.CharField(
-        max_length=50,
-        choices=Speciality.choices,
-        default=Speciality.OTHER,
-    )
-    rate = models.CharField(
-        max_length=50,
-        choices=TeacherRate.choices,
-        default=TeacherRate.RATE_1,
-    )
-    email = models.EmailField(max_length=255, blank=True)
-    phone_number = models.CharField(max_length=50, blank=True)
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+class Teacher(odm.Model):
+    user = odm.OneToOneField('accounts.User', on_delete=odm.SET_NULL, null=True, related_name='teacher_profile')
+    full_name = odm.CharField(max_length=255)
+    position = odm.CharField(max_length=50, choices=TeacherPosition.choices, default=TeacherPosition.TEACHER)
+    degree = odm.CharField(max_length=50, choices=TeacherDegree.choices, default=TeacherDegree.BACHELOR)
+    academic_title = odm.CharField(max_length=50, choices=AcademicTitle.choices, default=AcademicTitle.NONE)
+    speciality = odm.CharField(max_length=50, choices=Speciality.choices, default=Speciality.OTHER)
+    rate = odm.CharField(max_length=50, choices=TeacherRate.choices, default=TeacherRate.RATE_1)
+    email = odm.EmailField(max_length=255, blank=True)
+    phone_number = odm.CharField(max_length=50, blank=True)
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['full_name']
-        constraints = [
-            models.UniqueConstraint(
-                Lower('email'), condition=~models.Q(email=''),
-                name='teachers_unique_email_ci',
-            ),
-        ]
+        # Pochta (bo'sh bo'lmasa) katta-kichik harfdan qat'i nazar takrorlanmaydi
+        unique = [odm.UniqueKey('teachers_email', lambda o: o.email.lower() if o.email else None)]
+
+    def get_position_display(self):
+        return TeacherPosition(self.position).label if self.position in TeacherPosition.values else self.position
 
     def __str__(self):
         return f"{self.full_name} ({self.get_position_display()})"
-
-
-class TeacherSubject(models.Model):
-    teacher = models.ForeignKey(
-        Teacher,
-        on_delete=models.CASCADE,
-        related_name='teacher_subjects',
-    )
-    subject = models.ForeignKey(
-        'academics.Subject',
-        on_delete=models.CASCADE,
-        related_name='teacher_subjects',
-    )
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('teacher', 'subject')
-
-    def __str__(self):
-        return f"{self.teacher.full_name} - {self.subject.name}"
-
-
-class TeacherGroup(models.Model):
-    teacher = models.ForeignKey(
-        Teacher,
-        on_delete=models.CASCADE,
-        related_name='teacher_groups',
-    )
-    group = models.ForeignKey(
-        'academics.Group',
-        on_delete=models.CASCADE,
-        related_name='teacher_groups',
-    )
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('teacher', 'group')
-
-    def __str__(self):
-        return f"{self.teacher.full_name} - {self.group.name}"

@@ -10,7 +10,7 @@ Har bir qator uchun:
 
 import re
 
-from django.db import transaction
+from apps.core.odm import atomic
 
 from apps.academics.models import (
     Subject, StudyFormat, ProgramType, Course, Semester, StudyLanguage,
@@ -167,7 +167,7 @@ def build_subjects_from_data(department):
     return {'created': created, 'updated': updated}
 
 
-@transaction.atomic
+@atomic
 def import_rows_to_yuklama(parsed, department=None):
     """Parse qilingan ma'lumotni Yuklama (asosiy jadval) ga yozadi.
 

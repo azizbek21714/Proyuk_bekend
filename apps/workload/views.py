@@ -1,9 +1,7 @@
 from datetime import timedelta
 
-from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
-from rest_framework import viewsets, status
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -20,6 +18,8 @@ from .serializers import (
 )
 from .excel_parser import parse_workload_excel
 from .importer import import_rows_to_yuklama, build_subjects_from_data
+from apps.core.drf import ODMModelViewSet
+from apps.core.odm import atomic
 from apps.departments.models import Department
 from .services import sync_reja_assignments
 from config.permissions import limit_to_own
@@ -89,7 +89,7 @@ class YuklamaExcelImportView(APIView):
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            with transaction.atomic():
+            with atomic():
                 created = import_rows_to_yuklama(data, department=department)
 
                 # Kafedra bo'lsa — shakllantirilgan yuklamani va yillik soatni saqlaymiz
@@ -151,7 +151,7 @@ class FanlarShakllantirView(APIView):
         dlmd_qs = DlMdBiriktirma.objects.filter(department=department)
         reja_count = reja_qs.count()
         dlmd_count = dlmd_qs.count()
-        with transaction.atomic():
+        with atomic():
             # Rejalar kafedra yuklamasi nusxasidan tuzilgan — yuklamasiz ular eskirib qoladi.
             # Assignment va Approval yozuvlari CASCADE orqali birga o'chadi.
             reja_qs.delete()
@@ -168,7 +168,7 @@ class FanlarShakllantirView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-class KafedraYuklamaViewSet(viewsets.ModelViewSet):
+class KafedraYuklamaViewSet(ODMModelViewSet):
     queryset = Yuklama.objects.select_related(
         'department', 'department__faculty', 'group', 'subject',
         'subject__department', 'subject__department__faculty', 'dak', 'dl_md',
@@ -184,7 +184,7 @@ class KafedraYuklamaViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class RejaViewSet(viewsets.ModelViewSet):
+class RejaViewSet(ODMModelViewSet):
     queryset = Reja.objects.select_related(
         'teacher', 'department', 'department__faculty', 'department__faculty__otm'
     ).prefetch_related(
@@ -234,7 +234,7 @@ class RejaViewSet(viewsets.ModelViewSet):
         sync_reja_assignments(obj)
 
 
-class TopshiriqViewSet(viewsets.ModelViewSet):
+class TopshiriqViewSet(ODMModelViewSet):
     queryset = Assignment.objects.select_related('reja', 'workload_type', 'subject', 'group')
     serializer_class = AssignmentSerializer
 
@@ -244,7 +244,7 @@ class TopshiriqViewSet(viewsets.ModelViewSet):
         return qs.filter(reja_id=reja_id) if reja_id else qs
 
 
-class TasdiqlashViewSet(viewsets.ModelViewSet):
+class TasdiqlashViewSet(ODMModelViewSet):
     queryset = Approval.objects.select_related('reja', 'acted_by')
     serializer_class = ApprovalSerializer
 
@@ -276,7 +276,7 @@ class TasdiqlashViewSet(viewsets.ModelViewSet):
             obj.reja.save(update_fields=['status', 'edited_at'])
 
 
-class NormativViewSet(viewsets.ModelViewSet):
+class NormativViewSet(ODMModelViewSet):
     queryset = WorkloadNorm.objects.select_related('workload_type')
     serializer_class = WorkloadNormSerializer
 
@@ -310,7 +310,7 @@ class NormativViewSet(viewsets.ModelViewSet):
             qs = qs.exclude(pk=exclude_pk)
         start = attrs['valid_from']
         end = attrs.get('valid_until')
-        qs = qs.filter(Q(valid_until__isnull=True) | Q(valid_until__gte=start))
+        qs = qs.filter_fn(lambda n: n.valid_until is None or n.valid_until >= start)
         if end:
             qs = qs.filter(valid_from__lte=end)
         return qs
@@ -325,7 +325,7 @@ class NormativViewSet(viewsets.ModelViewSet):
                 'warning': "Tanlangan davrda ushbu profil uchun normativ mavjud.",
                 'overlapping': self.get_serializer(overlaps, many=True).data,
             })
-        with transaction.atomic():
+        with atomic():
             if overlaps.exists():
                 new_start = serializer.validated_data['valid_from']
                 overlaps.filter(valid_from__lt=new_start).update(valid_until=new_start - timedelta(days=1))
@@ -334,7 +334,7 @@ class NormativViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class DlMdBiriktirmaViewSet(viewsets.ModelViewSet):
+class DlMdBiriktirmaViewSet(ODMModelViewSet):
     queryset = DlMdBiriktirma.objects.select_related(
         'teacher', 'department', 'department__faculty', 'department__faculty__otm'
     ).all()

@@ -1,7 +1,9 @@
-from django.contrib.auth.models import User
-from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.db import IntegrityError
 from rest_framework.test import APIClient
+
+from apps.accounts.models import User
+from apps.core.odm import atomic
+from apps.core.testing import StoreTestCase
 
 from apps.academics.models import Subject
 from apps.departments.models import OTM, Faculty, Department
@@ -11,7 +13,7 @@ from apps.workload.importer import import_rows_to_yuklama
 from apps.workload.norms import POSITION_NORM_DEFAULTS, scaled_position_norm
 
 
-class IntegrationRegressionTests(TestCase):
+class IntegrationRegressionTests(StoreTestCase):
     def test_position_workload_norm_policy(self):
         self.assertEqual(POSITION_NORM_DEFAULTS, {
             'teacher': (750, 800),
@@ -195,7 +197,7 @@ class IntegrationRegressionTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_database_rejects_duplicate_email_ignoring_case(self):
-        with self.assertRaises(IntegrityError), transaction.atomic():
+        with self.assertRaises(IntegrityError), atomic():
             User.objects.create_superuser(
                 'duplicate-email-admin', email=self.user.email.upper(),
                 password='Admin-Access-6728!',

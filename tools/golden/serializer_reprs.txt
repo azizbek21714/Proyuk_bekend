@@ -1,0 +1,304 @@
+OTMSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    name = CharField(max_length=255)
+    short_name = CharField(allow_blank=True, max_length=100, required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+FacultySerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    name = CharField(max_length=255)
+    otm = PrimaryKeyRelatedField(queryset=OTM.objects.all())
+    otmId = PrimaryKeyRelatedField(queryset=<QuerySet [<OTM: Muhammad al-Xorazmiy nomidagi Toshkent Axborot Texnologiyalari Universiteti (TUIT)>]>, required=False, source='otm', write_only=True)
+    dean = PrimaryKeyRelatedField(allow_null=True, queryset=Teacher.objects.all(), required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+DepartmentSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    name = CharField(max_length=255)
+    faculty = PrimaryKeyRelatedField(queryset=Faculty.objects.all())
+    fakultetId = PrimaryKeyRelatedField(queryset=<QuerySet [<Faculty: Kompyuter Injiniringi>]>, required=False, source='faculty', write_only=True)
+    head_of_department = PrimaryKeyRelatedField(allow_null=True, queryset=Teacher.objects.all(), required=False)
+    teachers = PrimaryKeyRelatedField(many=True, queryset=Teacher.objects.all(), required=False)
+    yillik_yuklama = IntegerField(required=False)
+    yuklama_data = JSONField(decoder=None, encoder=None, required=False, style={'base_template': 'textarea.html'})
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+SubjectSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    kafedra = SerializerMethodField(read_only=True)
+    name = CharField(max_length=255)
+    study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+    program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+    course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+    semester = ChoiceField(choices=[('semester_1', 'Semester 1'), ('semester_2', 'Semester 2'), ('semester_3', 'Semester 3'), ('semester_4', 'Semester 4'), ('semester_5', 'Semester 5'), ('semester_6', 'Semester 6'), ('semester_7', 'Semester 7'), ('semester_8', 'Semester 8'), ('semester_9', 'Semester 9'), ('semester_10', 'Semester 10')], required=False)
+    study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+    study_languages = CharField(allow_blank=True, max_length=50, required=False)
+    maruza_hours = IntegerField(required=False)
+    amaliyot_hours = IntegerField(required=False)
+    laboratoriya_hours = IntegerField(required=False)
+    seminar_hours = IntegerField(required=False)
+    hours = IntegerField(required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+    department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+VALIDATORS: []
+
+GroupSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    kafedra = SerializerMethodField(read_only=True)
+    name = CharField(max_length=255)
+    course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+    program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+    study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+    study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+    oquv_yili = CharField(allow_blank=True, max_length=20, required=False)
+    students = IntegerField(required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+    department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+VALIDATORS: []
+
+DlMdSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    name = CharField(max_length=255)
+    type = ChoiceField(choices=[('lecture', 'Lecture'), ('seminar', 'Seminar'), ('laboratory', 'Laboratory'), ('independent_work', 'Independent Work')], required=False)
+    program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+    study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+    students = IntegerField(required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+DakSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    type = ChoiceField(choices=[('final_exam', 'Final Exam'), ('thesis_defense', 'Thesis Defense')], required=False)
+    hours = IntegerField(required=False)
+    body = CharField(allow_blank=True, required=False, style={'base_template': 'textarea.html'})
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+TeacherSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    full_name = CharField(max_length=255)
+    position = ChoiceField(choices=[('professor', 'Professor'), ('associate_professor', 'Associate Professor'), ('senior_teacher', 'Senior Teacher'), ('teacher', 'Teacher'), ('assistant', 'Assistant')], required=False)
+    degree = ChoiceField(choices=[('phd', 'PhD'), ('dsc', 'DSc'), ('master', 'Master'), ('bachelor', 'Bachelor')], required=False)
+    academic_title = ChoiceField(choices=[('professor', 'Professor'), ('docent', 'Docent'), ('senior_researcher', 'Senior Researcher'), ('none', 'None')], required=False)
+    speciality = ChoiceField(choices=[('economics', 'Economics'), ('mathematics', 'Mathematics'), ('computer_science', 'Computer Science'), ('engineering', 'Engineering'), ('other', 'Other')], required=False)
+    rate = ChoiceField(choices=[('rate_1_5', '1.5 stavka'), ('rate_1', '1 stavka'), ('rate_0_5_ichki', '0.5 ichki stavka'), ('rate_0_5_tashqi', '0.5 stavka tashqi'), ('rate_0_25', '0.25 stavka')], required=False)
+    email = EmailField(allow_blank=True, max_length=255, required=False)
+    phone_number = CharField(allow_blank=True, max_length=50, required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+    user = PrimaryKeyRelatedField(allow_null=True, queryset=User.objects.all(), required=False, validators=[<UniqueValidator(queryset=Teacher.objects.all())>])
+VALIDATORS: []
+
+DlMdBiriktirmaSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    oqituvchiId = PrimaryKeyRelatedField(queryset=<QuerySet [<Teacher: Abidova Shaxnoza Bahodirovna (Associate Professor)>, <Teacher: Azimov Sarvarbek Ravshanbek o'g'li (Assistant)>, <Teacher: Jo'rayev Azizbek Isroil o'g'li (Assistant)>, <Teacher: Khairullayev uchkun Bakhodirovich (Assistant)>, <Teacher: Sadikov Rustam Taxirovich (Associate Professor)>]>, source='teacher')
+    kafedraId = PrimaryKeyRelatedField(queryset=<QuerySet [<Department: Multimedia texnologiyalari>]>, source='department')
+    tur = CharField(max_length=10, required=False)
+    talimShakli = CharField(allow_blank=True, required=False, source='talim_shakli')
+    semestr = CharField(max_length=10, required=False)
+    talabaSoni = IntegerField(required=False, source='talaba_soni')
+    soatBirligi = IntegerField(required=False, source='soat_birligi')
+    jamiSoat = IntegerField(required=False, source='jami_soat')
+    oquvYili = CharField(allow_blank=True, required=False, source='oquv_yili')
+    oqituvchi = SerializerMethodField(read_only=True)
+    kafedra = SerializerMethodField(read_only=True)
+    createdAt = DateTimeField(read_only=True, source='created_at')
+    updatedAt = DateTimeField(read_only=True, source='edited_at')
+VALIDATORS: []
+
+YuklamaSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    subject = SubjectSerializer(read_only=True):
+        id = BigIntegerField(label='ID', read_only=True)
+        kafedra = SerializerMethodField(read_only=True)
+        name = CharField(max_length=255)
+        study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+        program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+        course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+        semester = ChoiceField(choices=[('semester_1', 'Semester 1'), ('semester_2', 'Semester 2'), ('semester_3', 'Semester 3'), ('semester_4', 'Semester 4'), ('semester_5', 'Semester 5'), ('semester_6', 'Semester 6'), ('semester_7', 'Semester 7'), ('semester_8', 'Semester 8'), ('semester_9', 'Semester 9'), ('semester_10', 'Semester 10')], required=False)
+        study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+        study_languages = CharField(allow_blank=True, max_length=50, required=False)
+        maruza_hours = IntegerField(required=False)
+        amaliyot_hours = IntegerField(required=False)
+        laboratoriya_hours = IntegerField(required=False)
+        seminar_hours = IntegerField(required=False)
+        hours = IntegerField(required=False)
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+        department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+    group = GroupSerializer(read_only=True):
+        id = BigIntegerField(label='ID', read_only=True)
+        kafedra = SerializerMethodField(read_only=True)
+        name = CharField(max_length=255)
+        course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+        program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+        study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+        study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+        oquv_yili = CharField(allow_blank=True, max_length=20, required=False)
+        students = IntegerField(required=False)
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+        department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+    dak = DakSerializer(read_only=True):
+        id = BigIntegerField(label='ID', read_only=True)
+        type = ChoiceField(choices=[('final_exam', 'Final Exam'), ('thesis_defense', 'Thesis Defense')], required=False)
+        hours = IntegerField(required=False)
+        body = CharField(allow_blank=True, required=False, style={'base_template': 'textarea.html'})
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+    dl_md = DlMdSerializer(read_only=True):
+        id = BigIntegerField(label='ID', read_only=True)
+        name = CharField(max_length=255)
+        type = ChoiceField(choices=[('lecture', 'Lecture'), ('seminar', 'Seminar'), ('laboratory', 'Laboratory'), ('independent_work', 'Independent Work')], required=False)
+        program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+        study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+        students = IntegerField(required=False)
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+    department = SerializerMethodField(read_only=True)
+    subject_id = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet [<Subject: (IT/Mutaxassislik tanlov fan) ¹ Visual tahlil/Multimodal texnologiyalar 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Data analysis/Muhandislik ma'lumotlarini yig'ish texnologiyalari (magistratura) 1-kurs Data Science (Master, Course 1)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Immersiv media dizayni 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Immersiv media dizayni 5-kurs MT 2-OT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Katta hajmli ma'lumotlarni vizuallashtirish usullari/Ma'lumotlarning immersiv analitikasi (magistratura) 2-kurs Data Science (Master, Course 2)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter animatsiyasi 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 5-kurs MT (2-OT) (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Obyektlarni geometrik moddellashtirish va renderlash/Multimedia dizayn 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Web ilovalarni yaratish 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1Immersiv media dizayni 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1Immersiv media dizayni/Vizual tahlil 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 3D texnologiyalar 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Kreativ loyihalash 3-kurs MT, KG (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Ma'lumotlar ilmida matematik tahlil/Ilmiy ma'lumotlarni vizualizatsiyalash (magistratura) 2-kurs Data Science (Master, Course 2)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Kompyuter ko‘rish 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Ma’lumotlarni vizuallashtirish 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Ma’lumotlarni vizuallashtirish 5-kurs MT 2-OT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Realistik vizual effektlar va simulyatsia (Bachelor, Course 5)>, '...(remaining elements truncated)...']>, required=False, source='subject', write_only=True)
+    group_id = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet []>, required=False, source='group', write_only=True)
+    dak_id = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet []>, required=False, source='dak', write_only=True)
+    dl_md_id = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet []>, required=False, source='dl_md', write_only=True)
+    department_id = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet [<Department: Multimedia texnologiyalari>]>, required=False, source='department', write_only=True)
+    name = CharField(max_length=255)
+    file = FileField(allow_null=True, max_length=100, required=False)
+    groups_count = IntegerField(required=False)
+    thread_count = IntegerField(required=False)
+    control = IntegerField(required=False)
+    edited_at = DateTimeField(read_only=True)
+    created_at = DateTimeField(read_only=True)
+VALIDATORS: []
+
+AcademicYearSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    name = CharField(max_length=20, validators=[<UniqueValidator(queryset=AcademicYear.objects.all())>])
+    starts_on = DateField()
+    ends_on = DateField()
+    is_active = BooleanField(required=False)
+VALIDATORS: []
+
+WorkloadTypeSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    bandRaqami = IntegerField(source='clause_number')
+    kod = CharField(source='code')
+    nomi = CharField(source='name')
+    formulaIfoda = CharField(allow_blank=True, required=False, source='formula_expression')
+    hisobSoatbay = BooleanField(required=False, source='is_hourly')
+    faol = BooleanField(required=False, source='is_active')
+    normativlarSoni = IntegerField(read_only=True, source='norms.count')
+VALIDATORS: []
+
+WorkloadNormSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    yuklamaTuriId = PrimaryKeyRelatedField(queryset=<QuerySet [<WorkloadType: MARUZA — Ma'ruza mashg'uloti>, <WorkloadType: FAN — O'quv mashg'ulotlari>, <WorkloadType: AMALIY — Amaliy mashg'ulot>, <WorkloadType: LABORATORIYA — Laboratoriya mashg'uloti>, <WorkloadType: SEMINAR — Seminar mashg'uloti>, <WorkloadType: DL — Diplom loyihasi rahbarligi>, <WorkloadType: MD — Magistrlik dissertatsiyasi rahbarligi>]>, source='workload_type')
+    otmProfil = CharField(source='institution_profile')
+    koeffitsient = FloatField(source='coefficient')
+    limitMin = IntegerField(allow_null=True, required=False, source='minimum')
+    limitMax = IntegerField(allow_null=True, required=False, source='maximum')
+    amalBoshi = DateField(source='valid_from')
+    amalOxiri = DateField(allow_null=True, required=False, source='valid_until')
+    izoh = CharField(allow_blank=True, allow_null=True, required=False, source='note')
+    createdAt = DateTimeField(read_only=True, source='created_at')
+VALIDATORS: []
+
+PositionNormSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    lavozim = CharField(source='position')
+    oquvYili = CharField(read_only=True, source='academic_year.name')
+    minimum = IntegerField(source='minimum_hours')
+    maximum = IntegerField(source='maximum_hours')
+VALIDATORS: []
+
+AssignmentSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    rejaId = PrimaryKeyRelatedField(queryset=<QuerySet [<Reja: Reja #19 (teacher=13, 2026-2027)>]>, source='reja')
+    yuklamaTuriId = PrimaryKeyRelatedField(queryset=<QuerySet [<WorkloadType: MARUZA — Ma'ruza mashg'uloti>, <WorkloadType: FAN — O'quv mashg'ulotlari>, <WorkloadType: AMALIY — Amaliy mashg'ulot>, <WorkloadType: LABORATORIYA — Laboratoriya mashg'uloti>, <WorkloadType: SEMINAR — Seminar mashg'uloti>, <WorkloadType: DL — Diplom loyihasi rahbarligi>, <WorkloadType: MD — Magistrlik dissertatsiyasi rahbarligi>]>, source='workload_type')
+    fanId = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet [<Subject: (IT/Mutaxassislik tanlov fan) ¹ Visual tahlil/Multimodal texnologiyalar 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Data analysis/Muhandislik ma'lumotlarini yig'ish texnologiyalari (magistratura) 1-kurs Data Science (Master, Course 1)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Immersiv media dizayni 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Immersiv media dizayni 5-kurs MT 2-OT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Katta hajmli ma'lumotlarni vizuallashtirish usullari/Ma'lumotlarning immersiv analitikasi (magistratura) 2-kurs Data Science (Master, Course 2)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter animatsiyasi 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Kompyuter ko‘rish/Social media marketing 5-kurs MT (2-OT) (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Obyektlarni geometrik moddellashtirish va renderlash/Multimedia dizayn 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1 Web ilovalarni yaratish 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1Immersiv media dizayni 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹1Immersiv media dizayni/Vizual tahlil 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 3D texnologiyalar 3-kurs MT (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Kreativ loyihalash 3-kurs MT, KG (Bachelor, Course 3)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Ma'lumotlar ilmida matematik tahlil/Ilmiy ma'lumotlarni vizualizatsiyalash (magistratura) 2-kurs Data Science (Master, Course 2)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Kompyuter ko‘rish 4-kurs MT (Bachelor, Course 4)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Ma’lumotlarni vizuallashtirish 5-kurs MT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Multimodal texnologiyalar/Ma’lumotlarni vizuallashtirish 5-kurs MT 2-OT (Bachelor, Course 5)>, <Subject: (IT/Mutaxassislik tanlov fan) ¹2 Realistik vizual effektlar va simulyatsia (Bachelor, Course 5)>, '...(remaining elements truncated)...']>, required=False, source='subject')
+    guruhId = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet []>, required=False, source='group')
+    semesterRaqami = IntegerField(source='semester_number')
+    soat = FloatField(source='hours')
+    hisobTuri = CharField(required=False, source='calculation_type')
+    formulaInput = JSONField(required=False, source='formula_input')
+    izoh = CharField(allow_blank=True, allow_null=True, required=False, source='note')
+    createdAt = DateTimeField(read_only=True, source='created_at')
+    yuklamaTuri = WorkloadTypeSerializer(read_only=True, source='workload_type'):
+        id = BigIntegerField(label='ID', read_only=True)
+        bandRaqami = IntegerField(source='clause_number')
+        kod = CharField(source='code')
+        nomi = CharField(source='name')
+        formulaIfoda = CharField(allow_blank=True, required=False, source='formula_expression')
+        hisobSoatbay = BooleanField(required=False, source='is_hourly')
+        faol = BooleanField(required=False, source='is_active')
+        normativlarSoni = IntegerField(read_only=True, source='norms.count')
+    fan = SubjectSerializer(read_only=True, source='subject'):
+        id = BigIntegerField(label='ID', read_only=True)
+        kafedra = SerializerMethodField(read_only=True)
+        name = CharField(max_length=255)
+        study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+        program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+        course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+        semester = ChoiceField(choices=[('semester_1', 'Semester 1'), ('semester_2', 'Semester 2'), ('semester_3', 'Semester 3'), ('semester_4', 'Semester 4'), ('semester_5', 'Semester 5'), ('semester_6', 'Semester 6'), ('semester_7', 'Semester 7'), ('semester_8', 'Semester 8'), ('semester_9', 'Semester 9'), ('semester_10', 'Semester 10')], required=False)
+        study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+        study_languages = CharField(allow_blank=True, max_length=50, required=False)
+        maruza_hours = IntegerField(required=False)
+        amaliyot_hours = IntegerField(required=False)
+        laboratoriya_hours = IntegerField(required=False)
+        seminar_hours = IntegerField(required=False)
+        hours = IntegerField(required=False)
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+        department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+    guruh = GroupSerializer(read_only=True, source='group'):
+        id = BigIntegerField(label='ID', read_only=True)
+        kafedra = SerializerMethodField(read_only=True)
+        name = CharField(max_length=255)
+        course = ChoiceField(choices=[('course_1', 'Course 1'), ('course_2', 'Course 2'), ('course_3', 'Course 3'), ('course_4', 'Course 4'), ('course_5', 'Course 5')], required=False)
+        program_type = ChoiceField(choices=[('bachelor', 'Bachelor'), ('master', 'Master'), ('phd', 'PhD')], required=False)
+        study_format = ChoiceField(choices=[('full_time', 'Full Time'), ('part_time', 'Part Time'), ('evening', 'Evening'), ('distance', 'Distance')], required=False)
+        study_language = ChoiceField(choices=[('uz', 'Uzbek'), ('ru', 'Russian'), ('en', 'English')], required=False)
+        oquv_yili = CharField(allow_blank=True, max_length=20, required=False)
+        students = IntegerField(required=False)
+        edited_at = DateTimeField(read_only=True)
+        created_at = DateTimeField(read_only=True)
+        department = PrimaryKeyRelatedField(allow_null=True, queryset=Department.objects.all(), required=False)
+VALIDATORS: []
+
+ApprovalSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    rejaId = PrimaryKeyRelatedField(queryset=<QuerySet [<Reja: Reja #19 (teacher=13, 2026-2027)>]>, source='reja')
+    bosqich = CharField(source='stage')
+    holat = CharField(required=False, source='state')
+    izoh = CharField(allow_blank=True, allow_null=True, required=False, source='comment')
+    tasdiqlaganAt = DateTimeField(read_only=True, source='acted_at')
+    createdAt = DateTimeField(read_only=True, source='created_at')
+VALIDATORS: []
+
+RejaSerializer():
+    id = BigIntegerField(label='ID', read_only=True)
+    oqituvchiId = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet [<Teacher: Abidova Shaxnoza Bahodirovna (Associate Professor)>, <Teacher: Azimov Sarvarbek Ravshanbek o'g'li (Assistant)>, <Teacher: Jo'rayev Azizbek Isroil o'g'li (Assistant)>, <Teacher: Khairullayev uchkun Bakhodirovich (Assistant)>, <Teacher: Sadikov Rustam Taxirovich (Associate Professor)>]>, required=False, source='teacher')
+    departmentId = PrimaryKeyRelatedField(allow_null=True, queryset=<QuerySet [<Department: Multimedia texnologiyalari>]>, required=False, source='department', write_only=True)
+    kafedraId = SerializerMethodField(read_only=True)
+    oquvYiliNomi = CharField(allow_blank=True, required=False, source='oquv_yili')
+    jamiSoat = IntegerField(required=False, source='jami_soat')
+    status = CharField(max_length=30, required=False)
+    fio = SerializerMethodField(read_only=True)
+    oqituvchi = SerializerMethodField(read_only=True)
+    topshiriqlar = SerializerMethodField(read_only=True)
+    data = JSONField(required=False)
+    created_at = DateTimeField(read_only=True)
+    edited_at = DateTimeField(read_only=True)
+    class Meta:
+        validators = [<UniqueTogetherValidator(queryset=Reja.objects.all(), fields=('oqituvchiId', 'oquvYiliNomi'))>]
+VALIDATORS: [<UniqueTogetherValidator(queryset=Reja.objects.all(), fields=('oqituvchiId', 'oquvYiliNomi'))>]
+

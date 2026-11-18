@@ -1,79 +1,51 @@
-from django.db import models
+from apps.core import odm
 
 
-class OTM(models.Model):
+class OTM(odm.Model):
     """Oliy ta'lim muassasasi — eng yuqori daraja"""
-    name = models.CharField(max_length=255)
-    short_name = models.CharField(max_length=100, blank=True)
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = odm.CharField(max_length=255)
+    short_name = odm.CharField(max_length=100, blank=True)
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'OTM'
-        verbose_name_plural = 'OTMlar'
 
     def __str__(self):
         return f"{self.name} ({self.short_name})" if self.short_name else self.name
 
 
-class Faculty(models.Model):
+class Faculty(odm.Model):
     """Fakultet — OTM ga tegishli"""
-    name = models.CharField(max_length=255)
-    otm = models.ForeignKey(
-        OTM,
-        on_delete=models.CASCADE,
-        related_name='faculties',
-    )
-    dean = models.ForeignKey(
-        'teachers.Teacher',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='deaned_faculties',
-    )
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    name = odm.CharField(max_length=255)
+    otm = odm.ForeignKey(OTM, on_delete=odm.CASCADE, related_name='faculties')
+    dean = odm.ForeignKey('teachers.Teacher', on_delete=odm.SET_NULL, null=True, related_name='deaned_faculties')
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['name']
-        verbose_name_plural = 'Fakultetlar'
 
     def __str__(self):
         return self.name
 
 
-class Department(models.Model):
+class Department(odm.Model):
     """Kafedra — Fakultet ga tegishli"""
-    name = models.CharField(max_length=255)
-    faculty = models.ForeignKey(
-        Faculty,
-        on_delete=models.CASCADE,
-        related_name='departments',
-    )
-    head_of_department = models.ForeignKey(
-        'teachers.Teacher',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='headed_departments',
-    )
-    teachers = models.ManyToManyField(
-        'teachers.Teacher',
-        blank=True,
-        related_name='departments',
-    )
+    name = odm.CharField(max_length=255)
+    faculty = odm.ForeignKey(Faculty, on_delete=odm.CASCADE, related_name='departments')
+    head_of_department = odm.ForeignKey('teachers.Teacher', on_delete=odm.SET_NULL, null=True,
+                                        related_name='headed_departments')
+    teachers = odm.ManyToManyField('teachers.Teacher', related_name='departments')
     # Kafedraning yillik yuklamasi (soat) — yuklama Excel faylidan hisoblanadi
-    yillik_yuklama = models.PositiveIntegerField(default=0)
+    yillik_yuklama = odm.IntegerField(positive=True, default=0)
     # Shakllantirilgan yuklama (qatorlar + o'quv yili) — ko'rish/tahrirlash uchun saqlanadi
-    yuklama_data = models.JSONField(default=dict, blank=True)
-    edited_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    yuklama_data = odm.JSONField(default=dict)
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'Kafedra'
-        verbose_name_plural = 'Kafedralar'
 
     def __str__(self):
         return self.name
