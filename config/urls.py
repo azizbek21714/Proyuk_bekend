@@ -16,6 +16,7 @@ urlpatterns = [
 
     # Rollar: hudud, rol berish, xabarlar, rol dashboardi
     path('api/auth/', include(role_urls.auth_patterns)),
+    path('api/auth/', include('config.users_admin')),
     path('api/crud/', include(role_urls.crud_patterns)),
     path('api/dashboard/', include(role_urls.dashboard_patterns)),
     path('api/teacher/', include(role_urls.teacher_patterns)),

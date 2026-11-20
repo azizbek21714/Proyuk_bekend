@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path
 from django.db import IntegrityError
 from hashlib import sha256
@@ -70,6 +71,9 @@ def _user_data(user):
 @permission_classes([AllowAny])
 @throttle_classes([AuthenticationRateThrottle])
 def signup(request):
+    if not getattr(settings, 'SIGNUP_OPEN', False):
+        return Response({'detail': "Ro'yxatdan o'tish yopilgan. Kirish uchun pochta va parolni administrator beradi."},
+                        status=status.HTTP_403_FORBIDDEN)
     serializer = SignupSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     fields = serializer.validated_data

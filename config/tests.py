@@ -1,3 +1,4 @@
+from django.test import override_settings
 from django.db import IntegrityError
 from rest_framework.test import APIClient
 
@@ -130,12 +131,14 @@ class IntegrationRegressionTests(StoreTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['user']['role'], 'oqituvchi')
 
+    @override_settings(SIGNUP_OPEN=True)
     def test_public_signup_cannot_assign_admin_role(self):
         response = self.client.post('/api/auth/signup', {'email': 'new-user@example.test', 'password': 'New-Access-8346!', 'role': 'admin'})
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data['user']['role'], 'oqituvchi')
         self.assertFalse(User.objects.get(email='new-user@example.test').is_staff)
 
+    @override_settings(SIGNUP_OPEN=True)
     def test_signup_persists_account_and_email_login_works(self):
         response = self.client.post('/api/auth/signup', {
             'email': '  NEW@example.test ', 'password': 'New-Access-8346!',
@@ -160,12 +163,14 @@ class IntegrationRegressionTests(StoreTestCase):
         self.assertEqual(login.status_code, 200)
         self.assertEqual(login.data['user']['id'], account.pk)
 
+    @override_settings(SIGNUP_OPEN=True)
     def test_signup_rejects_duplicate_email_ignoring_case(self):
         response = self.client.post('/api/auth/signup', {'email': 'TEACHER@example.test', 'password': 'New-Access-8346!'})
         self.assertEqual(response.status_code, 400)
         self.assertIn('email', response.data)
         self.assertEqual(User.objects.count(), 1)
 
+    @override_settings(SIGNUP_OPEN=True)
     def test_signup_links_precreated_teacher_profile(self):
         teacher = Teacher.objects.create(full_name='Pending Teacher', email='pending@example.test')
         response = self.client.post('/api/auth/signup', {
@@ -175,6 +180,7 @@ class IntegrationRegressionTests(StoreTestCase):
         teacher.refresh_from_db()
         self.assertEqual(teacher.user.email, 'pending@example.test')
 
+    @override_settings(SIGNUP_OPEN=True)
     def test_signup_rejects_invalid_or_missing_email(self):
         for email in ['', 'invalid', None]:
             response = self.client.post('/api/auth/signup', {'email': email, 'password': 'New-Access-8346!'}, format='json')

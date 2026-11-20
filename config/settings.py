@@ -102,6 +102,9 @@ FILE_STORAGE = env('FILE_STORAGE', default='local' if DEBUG else 'supabase')
 SUPABASE_URL = env('SUPABASE_URL', default='')
 SUPABASE_SERVICE_ROLE_KEY = env('SUPABASE_SERVICE_ROLE_KEY', default='')
 SUPABASE_BUCKET = env('SUPABASE_BUCKET', default='ish-dalillari')
+
+# Ochiq ro'yxatdan o'tish: hisoblarni admin beradi (Foydalanuvchilar sahifasi), shuning uchun o'chiq
+SIGNUP_OPEN = env.bool('SIGNUP_OPEN', default=False)
 # Sessiya ishlatilmaydi (JWT); test klienti uchun bazasiz dvigatel
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
