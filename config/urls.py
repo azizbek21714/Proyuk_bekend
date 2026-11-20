@@ -3,6 +3,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from config.dashboard_urls import teacher_urlpatterns
+from config import role_urls
 
 
 def health(request):
@@ -12,6 +13,13 @@ def health(request):
 
 urlpatterns = [
     path('api/health', health),
+
+    # Rollar: hudud, rol berish, xabarlar, rol dashboardi
+    path('api/auth/', include(role_urls.auth_patterns)),
+    path('api/crud/', include(role_urls.crud_patterns)),
+    path('api/dashboard/', include(role_urls.dashboard_patterns)),
+    path('api/teacher/', include(role_urls.teacher_patterns)),
+    path('api/hisobot/', include(role_urls.hisobot_patterns)),
 
     # Authentication
     path('api/auth/', include('config.auth_urls')),

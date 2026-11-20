@@ -104,3 +104,31 @@ class User(odm.Model):
 
 User.objects = UserManagerDescriptor()
 registry.alias('auth.User', User)
+
+
+class Xabar(odm.Model):
+    """Foydalanuvchiga ichki xabarnoma (reja/ish tekshiruvi natijalari)."""
+    user = odm.ForeignKey('accounts.User', on_delete=odm.CASCADE, related_name='xabarlar')
+    matn = odm.TextField()
+    havola = odm.CharField(max_length=255, blank=True)
+    oqilgan = odm.BooleanField(default=False)
+    created_at = odm.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        collection = 'xabarlar'
+        ordering = ['-created_at', '-id']
+
+
+def notify(users, matn, havola=''):
+    """Bir yoki bir nechta foydalanuvchiga xabar yozadi (None qiymatlar o'tkazib yuboriladi)."""
+    if users is None:
+        return
+    if not isinstance(users, (list, tuple, set)):
+        users = [users]
+    seen = set()
+    for user in users:
+        user_id = getattr(user, 'id', user)
+        if user_id is None or user_id in seen:
+            continue
+        seen.add(user_id)
+        Xabar.objects.create(user_id=user_id, matn=matn, havola=havola)

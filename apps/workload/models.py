@@ -160,3 +160,52 @@ class DlMdBiriktirma(odm.Model):
 
     def __str__(self):
         return f"DlMd #{self.pk} ({self.tur}, teacher={self.teacher_id}, {self.talaba_soni} ta)"
+
+
+class IshDalili(odm.Model):
+    """O'qituvchining shaxsiy rejadagi bitta ish (qator) bo'yicha bajarilganlik dalili.
+
+    Oqim: kafedrada (kafedra mudiri) → oquv_bolimida (o'quv bo'limi) → qabul_qilindi | rad_etildi.
+    Kafedra mudiri / dekanning o'z ishi to'g'ridan-to'g'ri oquv_bolimida dan boshlanadi.
+    """
+    teacher = odm.ForeignKey('teachers.Teacher', on_delete=odm.CASCADE, related_name='ish_dalillari')
+    reja = odm.ForeignKey(Reja, on_delete=odm.CASCADE, related_name='ish_dalillari')
+    department = odm.ForeignKey('departments.Department', on_delete=odm.SET_NULL, null=True,
+                                related_name='ish_dalillari')
+    oquv_yili = odm.CharField(max_length=20, blank=True, default='')
+    variant = odm.CharField(max_length=20, blank=True, default='')
+    bolim = odm.CharField(max_length=20)          # uslubiy | ilmiy | ustoz
+    qator_id = odm.CharField(max_length=64)
+    qator_nomi = odm.TextField(blank=True)        # rejadagi ish nomi (nusxa)
+    reja_soat = odm.DecimalField(max_digits=10, decimal_places=2, default=0)
+    izoh = odm.TextField(blank=True)
+    havola = odm.CharField(max_length=500, blank=True)
+    fayllar = odm.JSONField(default=list)         # [{path, nomi, hajm, mime}]
+    holat = odm.CharField(max_length=30, default='kafedrada')
+    sabab = odm.TextField(blank=True)
+    tekshiruvlar = odm.JSONField(default=list)    # [{bosqich, qaror, sabab, kim, kimId, sana}]
+    yuboruvchi_unvon = odm.CharField(max_length=255, blank=True)
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        collection = 'ish_dalillari'
+        ordering = ['-edited_at', '-id']
+        unique = [odm.UniqueKey('ish_dalili_qator', lambda o: [o.reja_id, o.bolim, o.qator_id])]
+
+
+class YillikNatija(odm.Model):
+    """Yopilgan o'quv yili bo'yicha o'qituvchining muzlatilgan bajarilish natijasi."""
+    teacher = odm.ForeignKey('teachers.Teacher', on_delete=odm.CASCADE, related_name='yillik_natijalar')
+    department = odm.ForeignKey('departments.Department', on_delete=odm.SET_NULL, null=True,
+                                related_name='yillik_natijalar')
+    oquv_yili = odm.CharField(max_length=20)
+    natija = odm.JSONField(default=dict)          # bajarilish.compute() natijasi
+    yopilgan_sana = odm.DateTimeField(null=True)
+    yopgan = odm.ForeignKey('accounts.User', on_delete=odm.SET_NULL, null=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        collection = 'yillik_natijalar'
+        ordering = ['-oquv_yili', 'id']
+        unique = [odm.UniqueKey('yillik_natija', lambda o: [o.teacher_id, o.oquv_yili])]

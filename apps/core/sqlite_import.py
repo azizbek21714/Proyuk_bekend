@@ -111,6 +111,10 @@ def _blacklist_docs(conn):
     return docs
 
 
+# SQLite'dan ko'chirishdan keyin qo'shilgan modellar: eski bazada jadvali bo'lmaydi.
+NEW_MODELS = {'accounts.Xabar', 'workload.IshDalili', 'workload.YillikNatija'}
+
+
 def plan_import(sqlite_path):
     """Returns (per_model, marker_ops, blacklist) where per_model = [(model, docs, counter)]."""
     conn = sqlite3.connect(sqlite_path)
@@ -119,6 +123,8 @@ def plan_import(sqlite_path):
         for model in registry.all_models():
             docs = build_docs(conn, model)
             if docs is None:
+                if model._meta.label in NEW_MODELS:
+                    continue  # Firestore'ga o'tgandan keyin qo'shilgan — eski bazada yo'q
                 problems.append(f'{model._meta.label}: jadval topilmadi ({_table(model)})')
                 continue
             per_model.append((model, docs, max_sequence(conn, _table(model), docs)))

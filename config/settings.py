@@ -96,6 +96,12 @@ DATABASES = {}
 STORE_JSON_PATH = env('STORE_JSON_PATH', default=str(BASE_DIR / '.localstore.json'))
 FIREBASE_PROJECT_ID = env('FIREBASE_PROJECT_ID', default='')
 FIRESTORE_DATABASE = env('FIRESTORE_DATABASE', default='(default)')
+
+# Ish dalillari (fayllar): supabase (production), local (dev, .local_files/), memory (testlar)
+FILE_STORAGE = env('FILE_STORAGE', default='local' if DEBUG else 'supabase')
+SUPABASE_URL = env('SUPABASE_URL', default='')
+SUPABASE_SERVICE_ROLE_KEY = env('SUPABASE_SERVICE_ROLE_KEY', default='')
+SUPABASE_BUCKET = env('SUPABASE_BUCKET', default='ish-dalillari')
 # Sessiya ishlatilmaydi (JWT); test klienti uchun bazasiz dvigatel
 SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
@@ -130,7 +136,7 @@ REST_FRAMEWORK = {
         'apps.accounts.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'config.permissions.IsApplicationAdminOrAuthenticatedReadOnly',
+        'config.permissions.RolePermission',
     ),
     'DEFAULT_PAGINATION_CLASS': 'config.pagination.OptionalPageNumberPagination',
     'PAGE_SIZE': 20,

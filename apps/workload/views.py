@@ -2,6 +2,8 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -22,7 +24,14 @@ from apps.core.drf import ODMModelViewSet
 from apps.core.odm import atomic
 from apps.departments.models import Department
 from .services import sync_reja_assignments
-from config.permissions import limit_to_own
+from apps.accounts.roles import user_scope
+from config.permissions import require_departments, scope_filter
+
+
+def _require(request, *department_ids):
+    """Admin — doim ruxsat; boshqa rollar faqat o'z hududidagi kafedralar uchun."""
+    if not user_scope(request.user).is_admin:
+        require_departments(request.user, department_ids)
 
 
 ALLOWED_EXCEL_EXTENSIONS = ('.xlsx', '.xlsm', '.xls')
@@ -42,6 +51,7 @@ class YuklamaExcelImportView(APIView):
     """
 
     parser_classes = [MultiPartParser, FormParser]
+    role_write = ('kafedra_mudiri',)
 
     def post(self, request, *args, **kwargs):
         file_obj = request.FILES.get('file')
@@ -88,6 +98,7 @@ class YuklamaExcelImportView(APIView):
                         {'detail': f"department_id={dep_id} bo'yicha kafedra topilmadi."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+            _require(request, department.id if department else None)
 
             with atomic():
                 created = import_rows_to_yuklama(data, department=department)
@@ -120,6 +131,7 @@ class FanlarShakllantirView(APIView):
 
     POST /api/crud/fanlar-shakllantir/  body: { department_id }
     """
+    role_write = ('kafedra_mudiri',)
 
     def post(self, request, *args, **kwargs):
         dep_id = request.data.get('department_id') or request.data.get('departmentId')
@@ -129,6 +141,7 @@ class FanlarShakllantirView(APIView):
                 {'detail': "department_id bo'yicha kafedra topilmadi."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        _require(request, department.id)
         result = build_subjects_from_data(department)
         return Response(result, status=status.HTTP_200_OK)
 
@@ -146,6 +159,7 @@ class FanlarShakllantirView(APIView):
                 {'detail': "department_id bo'yicha kafedra topilmadi."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        _require(request, department.id)
         sub_count = Subject.objects.filter(department=department).count()
         reja_qs = Reja.objects.filter(department=department)
         dlmd_qs = DlMdBiriktirma.objects.filter(department=department)
@@ -175,13 +189,23 @@ class KafedraYuklamaViewSet(ODMModelViewSet):
     ).all()
     serializer_class = YuklamaSerializer
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
+    role_write = ('kafedra_mudiri',)
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        qs = scope_filter(super().get_queryset(), self.request.user, departments_of=lambda o: [o.department_id])
         kafedra_id = self.request.query_params.get('kafedraId')
         if kafedra_id:
             qs = qs.filter(department_id=kafedra_id)
         return qs
+
+    def perform_create(self, serializer):
+        dep = serializer.validated_data.get('department')
+        _require(self.request, dep.id if dep else None)
+        super().perform_create(serializer)
+
+    def perform_destroy(self, instance):
+        _require(self.request, instance.department_id)
+        super().perform_destroy(instance)
 
 
 class RejaViewSet(ODMModelViewSet):
@@ -192,9 +216,12 @@ class RejaViewSet(ODMModelViewSet):
     ).all()
     serializer_class = RejaSerializer
     http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
+    role_write = ('kafedra_mudiri',)
 
     def get_queryset(self):
-        qs = limit_to_own(super().get_queryset(), self.request.user)
+        qs = scope_filter(super().get_queryset(), self.request.user,
+                          departments_of=lambda o: [o.department_id],
+                          teacher_of=lambda o: o.teacher_id, teacher_lookup='teacher')
         p = self.request.query_params
         if p.get('oqituvchiId'):
             qs = qs.filter(teacher_id=p['oqituvchiId'])
@@ -214,6 +241,8 @@ class RejaViewSet(ODMModelViewSet):
                             status=status.HTTP_409_CONFLICT)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        dep = serializer.validated_data.get('department')
+        _require(request, dep.id if dep else None)
         obj = serializer.save()
         # Kafedra yuklama_data ni rejaga nusxalaymiz (ko'rish uchun)
         dep = obj.department
@@ -230,8 +259,28 @@ class RejaViewSet(ODMModelViewSet):
         return Response(self.get_serializer(obj).data, status=status.HTTP_201_CREATED)
 
     def perform_update(self, serializer):
+        dep = serializer.validated_data.get('department', serializer.instance.department)
+        _require(self.request, serializer.instance.department_id, dep.id if dep else None)
         obj = serializer.save()
         sync_reja_assignments(obj)
+
+    @action(detail=True, methods=['post'], url_path='yuborish', permission_classes=[IsAuthenticated])
+    def yuborish(self, request, pk=None):
+        """O'qituvchi rejasini tasdiqlashga yuboradi (kafedra → dekan → o'quv bo'limi)."""
+        from .approval_flow import submit
+        reja = submit(request.user, self.get_object())
+        return Response(self.get_serializer(reja).data)
+
+    @action(detail=True, methods=['post'], url_path='qaror', permission_classes=[IsAuthenticated])
+    def qaror(self, request, pk=None):
+        """Navbatdagi bosqich rahbari qaror qiladi: {qaror: tasdiqlash|rad_etish, izoh}."""
+        from .approval_flow import decide
+        reja = decide(request.user, self.get_object(), request.data.get('qaror'), request.data.get('izoh'))
+        return Response(self.get_serializer(reja).data)
+
+    def perform_destroy(self, instance):
+        _require(self.request, instance.department_id)
+        super().perform_destroy(instance)
 
 
 class TopshiriqViewSet(ODMModelViewSet):
@@ -239,7 +288,10 @@ class TopshiriqViewSet(ODMModelViewSet):
     serializer_class = AssignmentSerializer
 
     def get_queryset(self):
-        qs = limit_to_own(super().get_queryset(), self.request.user, 'reja__teacher')
+        qs = scope_filter(super().get_queryset(), self.request.user,
+                          departments_of=lambda o: [o.reja.department_id] if o.reja else [],
+                          teacher_of=lambda o: o.reja.teacher_id if o.reja else None,
+                          teacher_lookup='reja__teacher')
         reja_id = self.request.query_params.get('rejaId')
         return qs.filter(reja_id=reja_id) if reja_id else qs
 
@@ -249,7 +301,10 @@ class TasdiqlashViewSet(ODMModelViewSet):
     serializer_class = ApprovalSerializer
 
     def get_queryset(self):
-        qs = limit_to_own(super().get_queryset(), self.request.user, 'reja__teacher')
+        qs = scope_filter(super().get_queryset(), self.request.user,
+                          departments_of=lambda o: [o.reja.department_id] if o.reja else [],
+                          teacher_of=lambda o: o.reja.teacher_id if o.reja else None,
+                          teacher_lookup='reja__teacher')
         reja_id = self.request.query_params.get('rejaId')
         return qs.filter(reja_id=reja_id) if reja_id else qs
 
@@ -279,6 +334,7 @@ class TasdiqlashViewSet(ODMModelViewSet):
 class NormativViewSet(ODMModelViewSet):
     queryset = WorkloadNorm.objects.select_related('workload_type')
     serializer_class = WorkloadNormSerializer
+    role_write = ('oquv_bolimi',)
 
     def list(self, request, *args, **kwargs):
         record_type = request.query_params.get('type', 'normativ')
@@ -339,9 +395,12 @@ class DlMdBiriktirmaViewSet(ODMModelViewSet):
         'teacher', 'department', 'department__faculty', 'department__faculty__otm'
     ).all()
     serializer_class = DlMdBiriktirmaSerializer
+    role_write = ('kafedra_mudiri',)
 
     def get_queryset(self):
-        qs = limit_to_own(super().get_queryset(), self.request.user)
+        qs = scope_filter(super().get_queryset(), self.request.user,
+                          departments_of=lambda o: [o.department_id],
+                          teacher_of=lambda o: o.teacher_id, teacher_lookup='teacher')
         p = self.request.query_params
         if p.get('oqituvchiId'):
             qs = qs.filter(teacher_id=p['oqituvchiId'])
@@ -356,6 +415,8 @@ class DlMdBiriktirmaViewSet(ODMModelViewSet):
         return qs
 
     def perform_create(self, serializer):
+        dep = serializer.validated_data.get('department')
+        _require(self.request, dep.id if dep else None)
         # Soat birligi: DL = 28, MD = 50 (talaba boshiga)
         tur = self.request.data.get('tur') or 'dl'
         sb = 50 if tur == 'md' else 28
@@ -364,7 +425,13 @@ class DlMdBiriktirmaViewSet(ODMModelViewSet):
 
     def perform_update(self, serializer):
         obj = serializer.instance
+        dep = serializer.validated_data.get('department', obj.department)
+        _require(self.request, obj.department_id, dep.id if dep else None)
         tur = self.request.data.get('tur') or obj.tur
         sb = 50 if tur == 'md' else 28
         ts = int(self.request.data.get('talabaSoni', obj.talaba_soni) or 0)
         serializer.save(soat_birligi=sb, jami_soat=ts * sb)
+
+    def perform_destroy(self, instance):
+        _require(self.request, instance.department_id)
+        super().perform_destroy(instance)
