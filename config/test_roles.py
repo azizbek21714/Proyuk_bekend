@@ -163,3 +163,20 @@ class RoleScopeTests(StoreTestCase):
         self.assertEqual([a['rejaId'] for a in data['kutilayotganAmallar']], [str(self.reja_a1.id)])
         self.assertEqual(self.as_(self.dekan).get('/api/dashboard/rol/').data['kutilayotganAmallar'], [])
         self.assertEqual(self.as_(self.oqit).get('/api/dashboard/rol/').status_code, 403)
+
+    def test_head_sees_only_own_department_not_sibling(self):
+        """Bir fakultetdagi qo'shni kafedra (Tarmoqlar) ma'lumotlari Dasturlash mudiriga ko'rinmaydi."""
+        from apps.academics.models import Group
+        g_a1 = Group.objects.create(name='DI-21', department=self.dep_a1)
+        g_a2 = Group.objects.create(name='TT-21', department=self.dep_a2)
+        Group.objects.create(name='OP-21', department=self.dep_b1)
+        sub_a2 = Subject.objects.create(name='Tarmoqlar asoslari', department=self.dep_a2)
+        mudir = self.as_(self.mudir)
+        self.assertEqual(self.ids(mudir.get('/api/crud/guruhlar/')), {g_a1.id})
+        self.assertEqual(self.ids(mudir.get('/api/crud/fanlar/')), {self.sub_a1.id})
+        self.assertEqual(self.ids(mudir.get('/api/crud/oqituvchilar/')), {self.mudir_t.id, self.oqit_t.id})
+        self.assertEqual(self.ids(mudir.get('/api/crud/kafedralar/')), {self.dep_a1.id})
+        self.assertEqual(mudir.get(f'/api/crud/guruhlar/{g_a2.id}/').status_code, 404)
+        self.assertEqual(mudir.get(f'/api/crud/fanlar/{sub_a2.id}/').status_code, 404)
+        # Dekan esa fakultetidagi ikkala kafedrani ko'radi
+        self.assertEqual(self.ids(self.as_(self.dekan).get('/api/crud/guruhlar/')), {g_a1.id, g_a2.id})
