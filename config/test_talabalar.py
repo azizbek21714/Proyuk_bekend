@@ -87,3 +87,12 @@ class TalabalarTests(StoreTestCase):
         self.assertEqual(res.status_code, 200, res.data)
         self.dep1.refresh_from_db()
         self.assertEqual(self.dep1.yuklama_data['meta'], {'title': 'X', 'oquv_yili': '2026-2027'})
+
+    def test_excel_export_own_group_only(self):
+        from openpyxl import load_workbook
+        Talaba.objects.create(group=self.g1, fio='Aliyev Anvar', telefon='+998901112233')
+        res = self.client.get('/api/crud/talabalar-export/', {'guruhId': self.g1.id})
+        self.assertEqual(res.status_code, 200)
+        ws = load_workbook(BytesIO(res.content)).active
+        self.assertEqual([c.value for c in ws[3]], [1, 'Aliyev Anvar', '+998901112233'])
+        self.assertEqual(self.client.get('/api/crud/talabalar-export/', {'guruhId': self.g2.id}).status_code, 403)

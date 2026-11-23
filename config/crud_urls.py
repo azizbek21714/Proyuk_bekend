@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.departments.views import OTMViewSet, FacultyViewSet, DepartmentViewSet
 from apps.academics.views import SubjectViewSet, GroupViewSet, DlMdViewSet
-from apps.academics.talaba_views import TalabaViewSet, TalabaImportView
+from apps.academics.talaba_views import TalabaViewSet, TalabaImportView, TalabaExportView
 from apps.teachers.views import TeacherViewSet
 from apps.workload.views import (
     KafedraYuklamaViewSet,
@@ -46,6 +46,7 @@ urlpatterns = [
     path('yuklama-excel/', YuklamaExcelImportView.as_view(), name='yuklama-excel'),
     path('fanlar-shakllantir/', FanlarShakllantirView.as_view(), name='fanlar-shakllantir'),
     path('talabalar-import/', TalabaImportView.as_view(), name='talabalar-import'),
+    path('talabalar-export/', TalabaExportView.as_view(), name='talabalar-export'),
     # Talabalar router ro'yxatiga kiritilmaydi — /api/crud/ ildiz javobi (admin API) o'zgarmasin
     path('talabalar/', TalabaViewSet.as_view({'get': 'list', 'post': 'create'}), name='talabalar-list'),
     path('talabalar/<int:pk>/', TalabaViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='talabalar-detail'),

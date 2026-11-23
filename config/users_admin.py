@@ -23,7 +23,36 @@ from apps.accounts.models import User
 from apps.core.odm import atomic
 from apps.departments.models import Department, Faculty
 from apps.teachers.models import Teacher, TeacherPosition
-from config.permissions import IsApplicationAdmin, is_application_admin
+from rest_framework.permissions import BasePermission
+
+from apps.accounts.roles import user_scope
+from config.permissions import is_application_admin
+
+
+class IsAdminOrHead(BasePermission):
+    """Admin — hammasi; kafedra mudiri — faqat o'z kafedrasi o'qituvchilarining kirish hisobi."""
+    message = "Bu amal faqat administrator yoki kafedra mudiri uchun ruxsat etilgan."
+
+    def has_permission(self, request, view):
+        return is_application_admin(request.user) or user_scope(request.user).role == 'kafedra_mudiri'
+
+
+# Kafedra mudiri o'qituvchi profilida faqat shu maydonlarni o'zgartira oladi (kirish hisobi)
+HEAD_FIELDS = {'pochta', 'parol', 'faol'}
+
+
+def _head_guard(request, teacher, idx):
+    """Mudir uchun: o'qituvchi uning kafedrasida bo'lishi va oddiy o'qituvchi bo'lishi kerak."""
+    if is_application_admin(request.user):
+        return
+    scope = user_scope(request.user)
+    if not set(idx.members.get(teacher.id, [])) & set(scope.department_ids):
+        raise _Abort(Response({'detail': "Bu o'qituvchi sizning kafedrangizda emas."}, status=status.HTTP_403_FORBIDDEN))
+    if scope.teacher_id == teacher.id:
+        raise _Abort(Response({'detail': "O'z hisobingizni bu yerdan o'zgartirib bo'lmaydi."}, status=status.HTTP_403_FORBIDDEN))
+    if _row(teacher, _find_user(teacher), idx)['rol'] != 'oqituvchi':
+        raise _Abort(Response({'detail': "Rahbar xodimlarning hisobini faqat administrator boshqaradi."},
+                              status=status.HTTP_403_FORBIDDEN))
 
 ROLLAR = ('oqituvchi', 'kafedra_mudiri', 'dekan', 'oquv_bolimi')
 ROLE_GROUPS = ('oquv_bolimi', 'dekan', 'kafedra_mudiri')
@@ -246,11 +275,23 @@ def _respond(teacher, status_code=status.HTTP_200_OK, **extra):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsApplicationAdmin])
+@permission_classes([IsAdminOrHead])
 def foydalanuvchilar(request):
     """GET — barcha xodimlar va rollari. POST — yangi xodim: {fio, telefon, pochta, parol, lavozim, rol,
     kafedraId, fakultetId}. Shu pochtali o'qituvchi profili bo'lsa (hisobsiz), unga bog'lanadi."""
     idx = _Index()
+    is_admin = is_application_admin(request.user)
+    if request.method == 'POST' and not is_admin:
+        return Response({'detail': "Yangi xodimni administrator qo'shadi."}, status=status.HTTP_403_FORBIDDEN)
+    if request.method == 'GET' and not is_admin:
+        # Kafedra mudiri: faqat o'z kafedrasi o'qituvchilari (kirish hisobini berish uchun)
+        own = set(user_scope(request.user).department_ids)
+        users = {u.id: u for u in User.objects.all()}
+        rows = []
+        for t in Teacher.objects.all():
+            if set(idx.members.get(t.id, [])) & own:
+                rows.append(_row(t, users.get(t.user_id) if t.user_id else _find_user(t), idx))
+        return Response(rows)
     if request.method == 'GET':
         users = list(User.objects.all())
         by_id = {u.id: u for u in users}
@@ -296,20 +337,27 @@ def foydalanuvchilar(request):
 
 
 @api_view(['GET', 'PATCH'])
-@permission_classes([IsApplicationAdmin])
+@permission_classes([IsAdminOrHead])
 def foydalanuvchi(request, teacher_id):
     """PATCH — istalgan maydon: fio, telefon, pochta, lavozim, rol (+kafedraId/fakultetId), faol.
     Hisobi yo'q profilga pochta + parol berilsa, kirish hisobi ochiladi."""
     teacher = Teacher.objects.filter(pk=teacher_id).first()
     if teacher is None:
         return Response({'detail': 'Foydalanuvchi topilmadi.'}, status=status.HTTP_404_NOT_FOUND)
+    idx = _Index()
+    try:
+        _head_guard(request, teacher, idx)
+    except _Abort as exc:
+        return exc.response
     if request.method == 'GET':
         return _respond(teacher)
 
     data = request.data
     user = _find_user(teacher)
-    idx = _Index()
     replaced = []
+    if not is_application_admin(request.user) and set(data.keys()) - HEAD_FIELDS:
+        return Response({'detail': "Kafedra mudiri faqat kirish hisobini (pochta, parol, holat) boshqaradi."},
+                        status=status.HTTP_403_FORBIDDEN)
     try:
         if user is not None and is_application_admin(user) and ('rol' in data or 'faol' in data):
             raise _Abort(_bad('rol', "Administrator rolini va holatini bu yerdan o'zgartirib bo'lmaydi."))
@@ -365,12 +413,16 @@ def foydalanuvchi(request, teacher_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsApplicationAdmin])
+@permission_classes([IsAdminOrHead])
 def foydalanuvchi_parol(request, teacher_id):
     """Admin xodimga yangi parol beradi: {parol}. Hisobi bo'lmasa — 400 (avval pochta bilan hisob oching)."""
     teacher = Teacher.objects.filter(pk=teacher_id).first()
     if teacher is None:
         return Response({'detail': 'Foydalanuvchi topilmadi.'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        _head_guard(request, teacher, _Index())
+    except _Abort as exc:
+        return exc.response
     user = _find_user(teacher)
     if user is None:
         return _bad('parol', "Bu xodimning kirish hisobi yo'q.")

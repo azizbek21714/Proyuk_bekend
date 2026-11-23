@@ -175,3 +175,46 @@ class TalabaImportView(APIView):
             'takror': skipped,
             'jami': len(rows),
         })
+
+
+class TalabaExportView(APIView):
+    """GET /api/crud/talabalar-export/?guruhId= — guruh talabalari ro'yxati Excel (.xlsx) faylda."""
+
+    def get(self, request, *args, **kwargs):
+        from io import BytesIO
+
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Border, Font, Side
+
+        group = Group.objects.filter(pk=request.query_params.get('guruhId') or 0).first()
+        if group is None:
+            return Response({'detail': 'Guruh topilmadi.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not user_scope(request.user).has_department(group.department_id):
+            return Response({'detail': "Bu guruh sizning hududingizda emas."}, status=status.HTTP_403_FORBIDDEN)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Talabalar'
+        ws.append([f'{group.name} guruhi talabalari ro\'yxati'])
+        ws.merge_cells('A1:C1')
+        ws['A1'].font = Font(bold=True, size=13)
+        ws.append(['№', 'F.I.Sh', 'Telefon'])
+        thin = Side(style='thin')
+        for i, t in enumerate(Talaba.objects.filter(group_id=group.id), start=1):
+            ws.append([i, t.fio, t.telefon or ''])
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+                if cell.row == 2:
+                    cell.font = Font(bold=True)
+                    cell.alignment = Alignment(horizontal='center')
+        ws.column_dimensions['A'].width = 6
+        ws.column_dimensions['B'].width = 42
+        ws.column_dimensions['C'].width = 20
+        buf = BytesIO()
+        wb.save(buf)
+        response = HttpResponse(buf.getvalue(),
+                                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="talabalar-{group.id}.xlsx"'
+        return response

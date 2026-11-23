@@ -141,6 +141,7 @@ def rol_rejalar(request):
     """
     from apps.workload.approval_flow import STAGES, can_act, next_approval
     from apps.workload.models import Approval, Reja
+    from apps.workload.services import reja_fan_hours
 
     if user_scope(request.user).role == 'oqituvchi':
         return Response({'detail': "Bu sahifa rahbarlar uchun."}, status=status.HTTP_403_FORBIDDEN)
@@ -170,12 +171,14 @@ def rol_rejalar(request):
         rows.append({
             'id': r.id,
             'fio': r.teacher.full_name if r.teacher else '',
+            'lavozim': r.teacher.position if r.teacher else '',
             'oqituvchiId': r.teacher_id,
             'kafedraId': r.department_id,
             'kafedraNomi': r.department.name if r.department else '',
             'oquvYili': r.oquv_yili,
             'status': r.status,
-            'jamiSoat': r.jami_soat,
+            # Shakllangan yuklama soati (diagramma bilan bir xil hisob)
+            'jamiSoat': float(reja_fan_hours(r)),
             'navbat': nxt.stage if nxt else None,
             'mengaNavbat': mine,
             'bosqichlar': [{

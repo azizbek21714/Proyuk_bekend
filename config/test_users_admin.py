@@ -116,3 +116,50 @@ class UsersAdminTests(StoreTestCase):
         self.assertEqual(self.client.patch(f'{URL}/{teacher.id}', {'rol': 'dekan'}, format='json').status_code, 400)
         self.assertEqual(self.create(pochta='admin@t.test').status_code, 400)
         self.assertEqual(User.objects.filter(email__iexact='admin@t.test').count(), 1)
+
+
+class HeadAccountsTests(StoreTestCase):
+    """Kafedra mudiri faqat o'z kafedrasidagi oddiy o'qituvchilarga kirish hisobi beradi."""
+
+    def setUp(self):
+        otm = OTM.objects.create(name='Universitet')
+        fac = Faculty.objects.create(name='KIF', otm=otm)
+        self.dep1 = Department.objects.create(name='Dasturlash', faculty=fac)
+        self.dep2 = Department.objects.create(name='Tarmoqlar', faculty=fac)
+        head_user = User.objects.create_user('mudir', email='mudir@t.test', password='x')
+        self.head = Teacher.objects.create(user=head_user, full_name='Mudir', email=head_user.email)
+        self.own = Teacher.objects.create(full_name='Oz Oqituvchi', email='oz@t.test')
+        self.other = Teacher.objects.create(full_name='Begona Oqituvchi', email='begona@t.test')
+        self.dep1.teachers.add(self.head, self.own)
+        self.dep2.teachers.add(self.other)
+        self.dep1.head_of_department = self.head
+        self.dep1.save()
+        self.client = APIClient()
+        self.client.force_authenticate(head_user)
+
+    def test_head_lists_and_opens_account_for_own_teacher(self):
+        rows = self.client.get(URL).data
+        self.assertEqual({r['id'] for r in rows}, {self.head.id, self.own.id})
+        res = self.client.patch(f'{URL}/{self.own.id}', {'pochta': 'oz@t.test', 'parol': PAROL}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertTrue(res.data['hisob'])
+        login = APIClient().post('/api/auth/login', {'email': 'oz@t.test', 'password': PAROL}, format='json')
+        self.assertEqual(login.status_code, 200)
+        self.assertEqual(self.client.post(f'{URL}/{self.own.id}/parol', {'parol': 'Boshqa-Parol-5512'},
+                                          format='json').status_code, 200)
+
+    def test_head_limits(self):
+        # Boshqa kafedra, o'zi, rol berish va yangi xodim yaratish — taqiqlangan
+        self.assertEqual(self.client.patch(f'{URL}/{self.other.id}', {'parol': PAROL}, format='json').status_code, 403)
+        self.assertEqual(self.client.patch(f'{URL}/{self.head.id}', {'parol': PAROL}, format='json').status_code, 403)
+        self.assertEqual(self.client.patch(f'{URL}/{self.own.id}', {'rol': 'dekan'}, format='json').status_code, 403)
+        self.assertEqual(self.client.patch(f'{URL}/{self.own.id}', {'fio': 'X'}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(URL, {'fio': 'Y', 'pochta': 'y@t.test', 'parol': PAROL}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(f'{URL}/{self.other.id}/parol', {'parol': PAROL}, format='json').status_code, 403)
+
+    def test_plain_teacher_forbidden(self):
+        teacher_user = User.objects.create_user('oddiy', email='oddiy@t.test', password='x')
+        Teacher.objects.create(user=teacher_user, full_name='Oddiy', email=teacher_user.email)
+        c = APIClient()
+        c.force_authenticate(teacher_user)
+        self.assertEqual(c.get(URL).status_code, 403)
