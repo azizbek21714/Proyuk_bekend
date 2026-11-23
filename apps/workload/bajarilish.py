@@ -55,6 +55,11 @@ def plan_rows(reja):
                     'rejaSoat': float(_num(item.get('rejaSoat'))),
                     'muddatReja': str(item.get('muddatReja') or ''),
                     'variant': rate,
+                    # Rejadagi qiymat belgilari (kartochkalar uchun): ilmiy — Scopus/WoS va Respub.,
+                    # uslubiy — bet soni
+                    'scopus': str(item.get('scopus') or '').strip(),
+                    'respub': str(item.get('respub') or '').strip(),
+                    'rejaBet': str(item.get('rejaBet') or '').strip(),
                 })
     return [r for r in rows if r['nomi'] or r['rejaSoat']]
 

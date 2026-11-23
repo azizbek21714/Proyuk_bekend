@@ -174,6 +174,23 @@ def teacher_dashboard(request):
                     },
                 }
             variants = dict(raw_variants)
+            if reja.status in ('tekshiruvda', 'tasdiqlangan'):
+                # Tasdiqqa yuborilgan reja qulflangan: mavjud ishlarni o'zgartirib/o'chirib bo'lmaydi,
+                # faqat yangi bajarilgan ish (chiqqan maqola, DGU…) qo'shish mumkin.
+                for rate, personal_doc in submitted.items():
+                    old_variant = variants.get(rate) if isinstance(variants.get(rate), dict) else {}
+                    old_doc = old_variant.get('doc') if isinstance(old_variant.get('doc'), dict) else {}
+                    for key, value in personal_doc.items():
+                        old_value = old_doc.get(key)
+                        if key in ('uslubiy', 'ilmiy', 'ustozShogird'):
+                            old_rows = [r for r in (old_value or []) if isinstance(r, dict)]
+                            new_by_id = {str(r.get('id')): r for r in value if isinstance(r, dict)}
+                            if any(new_by_id.get(str(r.get('id'))) != r for r in old_rows):
+                                return Response({'detail': "Reja tasdiqqa yuborilgan: mavjud ishlarni o'zgartirib "
+                                                           "bo'lmaydi, faqat yangi ish qo'shish mumkin."}, status=403)
+                        elif value != (old_value if old_value is not None else ({} if key == 'reyting' else '')):
+                            return Response({'detail': "Reja tasdiqqa yuborilgan: uni o'zgartirib bo'lmaydi."},
+                                            status=403)
             for rate, personal_doc in submitted.items():
                 variant = dict(variants.get(rate, {})) if isinstance(variants.get(rate), dict) else {}
                 old_doc = variant.get('doc', {})

@@ -211,7 +211,66 @@ crud_patterns = [
 
 from apps.workload import report_views  # noqa: E402
 
+LESSON_LABELS = {'maruza': "Ma'ruza", 'amaliyot': "Amaliy mashg'ulot", 'laboratoriya': 'Laboratoriya'}
+WORK_LABELS = {'amaliyot': 'Amaliyot (praktika)', 'nazorat': 'Nazorat', 'kurs_loyihasi': 'Kurs ishi',
+               'md_ilmiy_rahbarlik': 'MD rahbarligi', 'bmi_rahbarlik': 'BMI rahbarligi', 'dak_taqriz': 'DAK / taqriz'}
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def teacher_guruhlar(request):
+    """O'qituvchi profili: rejasidagi fanlarga mudir biriktirgan guruhlar (talabalari va fanlari bilan).
+
+    ?oquvYili= — bo'lmasa eng oxirgi reja. Faqat o'z rejasidagi guruhlar qaytariladi.
+    """
+    from apps.academics.models import Group, Talaba
+    from apps.workload.evidence_views import _teacher_reja
+
+    scope = user_scope(request.user)
+    if scope.teacher is None:
+        return Response({'reja': None, 'guruhlar': [], 'biriktirilmagan': []})
+    reja = _teacher_reja(scope, oquv_yili=request.query_params.get('oquvYili'))
+    if reja is None:
+        return Response({'reja': None, 'guruhlar': [], 'biriktirilmagan': []})
+    data = reja.data if isinstance(reja.data, dict) else {}
+    variants = data.get('variants') if isinstance(data.get('variants'), dict) else {'rate_1': data}
+    fans_by_group, unassigned, seen = {}, [], set()
+    for variant in variants.values():
+        for fan in (variant or {}).get('fanlar') or []:
+            if not isinstance(fan, dict) or str(fan.get('id')) in seen:
+                continue
+            seen.add(str(fan.get('id')))
+            item = {
+                'nomi': str(fan.get('baseNomi') or fan.get('nomi') or ''),
+                'turi': LESSON_LABELS.get(fan.get('lessonType')) or WORK_LABELS.get(fan.get('workloadKind')) or '',
+                'semestr': fan.get('semestr') or '',
+                'soat': fan.get('soat') or 0,
+            }
+            guruhlar = [g for g in (fan.get('guruhlar') or []) if isinstance(g, dict) and g.get('id')]
+            if not guruhlar:
+                unassigned.append(item)
+            for g in guruhlar:
+                fans_by_group.setdefault(int(g['id']), []).append(item)
+    groups = {g.id: g for g in Group.objects.filter(pk__in=list(fans_by_group))}
+    result = []
+    for gid, fans in fans_by_group.items():
+        g = groups.get(gid)
+        if g is None:
+            continue
+        talabalar = [{'id': t.id, 'fio': t.fio, 'telefon': t.telefon}
+                     for t in Talaba.objects.filter(group_id=gid)]
+        result.append({
+            'id': g.id, 'nomi': g.name, 'kurs': g.course, 'talimShakli': g.program_type,
+            'oqishShakli': g.study_format, 'talabaSoni': g.students or len(talabalar),
+            'fanlar': fans, 'talabalar': talabalar,
+        })
+    result.sort(key=lambda r: r['nomi'])
+    return Response({'reja': {'id': reja.id, 'oquvYili': reja.oquv_yili},
+                     'guruhlar': result, 'biriktirilmagan': unassigned})
+
+
 teacher_patterns = [
+    path('guruhlar/', teacher_guruhlar),
     path('bajarilgan-ishlar/', evidence_views.teacher_ishlar),
     path('natijalar/', report_views.teacher_natijalar),
 ]
