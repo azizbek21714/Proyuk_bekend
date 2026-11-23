@@ -110,6 +110,21 @@ class Group(odm.Model):
         return self.name
 
 
+class Talaba(odm.Model):
+    """Guruhdagi talaba (kafedra mudiri qo'lda yoki Excel'dan kiritadi)."""
+    group = odm.ForeignKey(Group, on_delete=odm.CASCADE, related_name='talabalar')
+    fio = odm.CharField(max_length=255)
+    telefon = odm.CharField(max_length=50, blank=True, default='')
+    edited_at = odm.DateTimeField(auto_now=True)
+    created_at = odm.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['fio']
+
+    def __str__(self):
+        return self.fio
+
+
 class DlMd(odm.Model):
     name = odm.CharField(max_length=255)
     type = odm.CharField(max_length=50, choices=DlMdType.choices, default=DlMdType.LECTURE)

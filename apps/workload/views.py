@@ -105,8 +105,12 @@ class YuklamaExcelImportView(APIView):
 
                 # Kafedra bo'lsa — shakllantirilgan yuklamani va yillik soatni saqlaymiz
                 if department is not None:
+                    meta = dict(data['meta'] or {})
+                    oquv_yili = str(request.data.get('oquv_yili') or '').strip()
+                    if oquv_yili:  # yuklama qaysi o'quv yiliga tegishli (fanlar bo'limi shu bo'yicha filtrlaydi)
+                        meta['oquv_yili'] = oquv_yili
                     department.yuklama_data = {
-                        'meta': data['meta'],
+                        'meta': meta,
                         'kuzgi': data['kuzgi'],
                         'bahorgi': data['bahorgi'],
                         'totals': data['totals'],

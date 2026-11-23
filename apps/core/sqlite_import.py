@@ -112,7 +112,7 @@ def _blacklist_docs(conn):
 
 
 # SQLite'dan ko'chirishdan keyin qo'shilgan modellar: eski bazada jadvali bo'lmaydi.
-NEW_MODELS = {'accounts.Xabar', 'workload.IshDalili', 'workload.YillikNatija'}
+NEW_MODELS = {'accounts.Xabar', 'workload.IshDalili', 'workload.YillikNatija', 'academics.Talaba'}
 
 
 def plan_import(sqlite_path):
