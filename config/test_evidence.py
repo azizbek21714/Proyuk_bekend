@@ -143,3 +143,39 @@ class EvidenceTests(StoreTestCase):
         archive = self.as_(self.oqit).get('/api/teacher/natijalar/').data
         self.assertEqual((archive[0]['oquvYili'], archive[0]['yopilgan'], archive[0]['umumiyFoiz']),
                          ('2026-2027', True, 50.0))
+
+
+class EvidenceFormTests(EvidenceTests):
+    """Yangi forma: har bir yuborish alohida yozuv, maqola maydonlari, qayta yuborish."""
+
+    def test_several_submissions_per_plan_row_with_article_fields(self):
+        first = self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='Birinchi maqola',
+                            nashrTuri='konferensiya', hammualliflar='2', havola='https://doi.org/10.1/x')
+        self.assertEqual(first.status_code, 201, first.data)
+        self.assertEqual((first.data['ishNomi'], first.data['nashrTuri'], first.data['hammualliflar']),
+                         ('Birinchi maqola', 'konferensiya', 2))
+        second = self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='Ikkinchi maqola',
+                             nashrTuri='jurnal')
+        self.assertEqual(second.status_code, 201)
+        self.assertNotEqual(first.data['id'], second.data['id'])
+        self.assertEqual(IshDalili.objects.filter(reja=self.reja, qator_id='i1').count(), 2)
+        bad = self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='X', nashrTuri='kitob')
+        self.assertEqual(bad.status_code, 400)
+
+    def test_row_counts_done_when_any_submission_accepted(self):
+        a = self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='A').data
+        self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='B')
+        self.review(self.mudir, a['id'], 'qabul')
+        self.review(self.oquv, a['id'], 'qabul')
+        res = self.as_(self.oqit).get('/api/teacher/bajarilgan-ishlar/')
+        ilmiy = next(b for b in res.data['natija']['bolimlar'] if b['bolim'] == 'ilmiy')
+        self.assertEqual((ilmiy['qabulQilingan'], ilmiy['foiz']), (1, 100.0))
+        row = next(q for q in res.data['qatorlar'] if q['id'] == 'i1')
+        self.assertEqual((row['dalil']['holat'], row['yuborilgan']), ('qabul_qilindi', 2))
+
+    def test_resubmit_rejected_submission_by_id(self):
+        d = self.upload(self.oqit, self.reja, ishNomi="Qo'llanma").data
+        self.review(self.mudir, d['id'], 'rad', 'Fayl o\'qilmaydi')
+        again = self.upload(self.oqit, self.reja, dalilId=d['id'], name='yangi.pdf')
+        self.assertEqual(again.status_code, 201, again.data)
+        self.assertEqual((again.data['id'], again.data['holat'], len(again.data['fayllar'])), (d['id'], 'kafedrada', 2))

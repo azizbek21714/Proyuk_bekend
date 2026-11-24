@@ -177,6 +177,10 @@ class IshDalili(odm.Model):
     bolim = odm.CharField(max_length=20)          # uslubiy | ilmiy | ustoz
     qator_id = odm.CharField(max_length=64)
     qator_nomi = odm.TextField(blank=True)        # rejadagi ish nomi (nusxa)
+    # Yuborilgan ishning o'zi (bitta rejadagi ishga bir nechta yuborish mumkin, masalan 2 ta tezis)
+    ish_nomi = odm.TextField(blank=True)          # maqola / qilingan ish nomi
+    nashr_turi = odm.CharField(max_length=20, blank=True, default='')  # ilmiy: jurnal | konferensiya
+    hammualliflar = odm.IntegerField(positive=True, null=True)         # ilmiy: hammualliflar soni
     reja_soat = odm.DecimalField(max_digits=10, decimal_places=2, default=0)
     izoh = odm.TextField(blank=True)
     havola = odm.CharField(max_length=500, blank=True)
@@ -191,7 +195,6 @@ class IshDalili(odm.Model):
     class Meta:
         collection = 'ish_dalillari'
         ordering = ['-edited_at', '-id']
-        unique = [odm.UniqueKey('ish_dalili_qator', lambda o: [o.reja_id, o.bolim, o.qator_id])]
 
 
 class YillikNatija(odm.Model):

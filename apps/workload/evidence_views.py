@@ -105,6 +105,10 @@ def serialize(dalil, user=None, full=True):
         'bolim': dalil.bolim,
         'qatorId': dalil.qator_id,
         'qatorNomi': dalil.qator_nomi,
+        'ishNomi': dalil.ish_nomi or '',
+        'nomi': dalil.ish_nomi or dalil.qator_nomi,
+        'nashrTuri': dalil.nashr_turi or '',
+        'hammualliflar': dalil.hammualliflar,
         'rejaSoat': float(dalil.reja_soat or 0),
         'izoh': dalil.izoh,
         'havola': dalil.havola,
@@ -191,7 +195,29 @@ def _upload(request):
     if havola and not havola.lower().startswith(('http://', 'https://')):
         return _err("Havola http:// yoki https:// bilan boshlanishi kerak.")
 
-    dalil = IshDalili.objects.filter(reja=reja, bolim=bolim, qator_id=row['id']).first()
+    ish_nomi = ' '.join(str(request.data.get('ishNomi') or '').split())[:1000]
+    nashr_turi = str(request.data.get('nashrTuri') or '').strip()
+    if nashr_turi not in ('', 'jurnal', 'konferensiya'):
+        return _err("Nashr turi 'jurnal' yoki 'konferensiya' bo'lishi kerak.")
+    hammualliflar = None
+    if str(request.data.get('hammualliflar') or '').strip():
+        try:
+            hammualliflar = int(request.data.get('hammualliflar'))
+        except (TypeError, ValueError):
+            return _err("Hammualliflar soni butun son bo'lishi kerak.")
+        if not 0 <= hammualliflar <= 100:
+            return _err("Hammualliflar soni 0 dan 100 gacha bo'lishi kerak.")
+
+    dalil_id = request.data.get('dalilId')
+    if dalil_id:
+        # Mavjud yuborishga fayl qo'shish yoki rad etilganini qayta yuborish
+        dalil = IshDalili.objects.filter(pk=dalil_id, reja=reja).first()
+        if dalil is None:
+            return _err('Yuborilgan ish topilmadi.', status.HTTP_404_NOT_FOUND)
+    elif ish_nomi:
+        dalil = None  # yangi forma: har bir yuborish alohida yozuv (masalan 2 ta tezis)
+    else:
+        dalil = IshDalili.objects.filter(reja=reja, bolim=bolim, qator_id=row['id']).first()
     if dalil is not None and dalil.holat == 'qabul_qilindi':
         return _err('Bu ish allaqachon qabul qilingan.')
     existing = len(dalil.fayllar or []) if dalil else 0
@@ -218,6 +244,12 @@ def _upload(request):
         dalil.variant = row['variant']
         dalil.qator_nomi = row['nomi']
         dalil.reja_soat = row['rejaSoat']
+        if ish_nomi:
+            dalil.ish_nomi = ish_nomi
+        if nashr_turi:
+            dalil.nashr_turi = nashr_turi
+        if hammualliflar is not None:
+            dalil.hammualliflar = hammualliflar
         dalil.fayllar = list(dalil.fayllar or []) + saved
         if izoh:
             dalil.izoh = izoh
@@ -230,7 +262,7 @@ def _upload(request):
         dalil.save()
     if dalil.holat in ('kafedrada', 'oquv_bolimida'):
         notify(_reviewers(dalil),
-               f"{dalil.teacher.full_name if dalil.teacher else ''} bajarilgan ish yukladi: {dalil.qator_nomi}",
+               f"{dalil.teacher.full_name if dalil.teacher else ''} bajarilgan ish yukladi: {dalil.ish_nomi or dalil.qator_nomi}",
                REVIEW_LINK.get(dalil.holat, ''))
     return Response(serialize(dalil, request.user), status=status.HTTP_201_CREATED)
 
@@ -293,12 +325,12 @@ def dalil_tekshirish(request, pk):
         dalil.save(update_fields=['holat', 'sabab', 'tekshiruvlar', 'edited_at'])
     owner = dalil.teacher.user_id if dalil.teacher else None
     if dalil.holat == 'rad_etildi':
-        notify(owner, f"«{dalil.qator_nomi}» ishingiz rad etildi. Sabab: {sabab}", LINK)
+        notify(owner, f"«{dalil.ish_nomi or dalil.qator_nomi}» ishingiz rad etildi. Sabab: {sabab}", LINK)
     elif dalil.holat == 'qabul_qilindi':
-        notify(owner, f"«{dalil.qator_nomi}» ishingiz qabul qilindi.", LINK)
+        notify(owner, f"«{dalil.ish_nomi or dalil.qator_nomi}» ishingiz qabul qilindi.", LINK)
     else:
         notify(_reviewers(dalil),
-               f"{dalil.teacher.full_name if dalil.teacher else ''}: «{dalil.qator_nomi}» kafedra mudiri tomonidan "
+               f"{dalil.teacher.full_name if dalil.teacher else ''}: «{dalil.ish_nomi or dalil.qator_nomi}» kafedra mudiri tomonidan "
                "tasdiqlandi va sizga yuborildi.", REVIEW_LINK['oquv_bolimida'])
     return Response(serialize(dalil, request.user))
 
@@ -344,12 +376,19 @@ def teacher_ishlar(request):
     if reja is None:
         return Response({'reja': None, 'qatorlar': [], 'natija': None, 'yopilgan': False})
     dalillar_list = list(IshDalili.objects.filter(reja=reja))
-    by_row = {(d.bolim, d.qator_id): d for d in dalillar_list}
+    # Har bir rejadagi ish uchun eng yaxshi holatdagi dalil (qabul > o'quv bo'limi > mudir > rad)
+    rank = {'qabul_qilindi': 4, 'oquv_bolimida': 3, 'kafedrada': 2, 'rad_etildi': 1}
+    by_row = {}
+    for d in dalillar_list:
+        key = (d.bolim, d.qator_id)
+        if key not in by_row or rank.get(d.holat, 0) > rank.get(by_row[key].holat, 0):
+            by_row[key] = d
     today = timezone.now().date().isoformat()
     qatorlar = []
     for row in plan_rows(reja):
         dalil = by_row.get((row['bolim'], row['id']))
-        qatorlar.append({**row, 'dalil': serialize(dalil) if dalil else None, 'bugun': today})
+        soni = sum(1 for d in dalillar_list if (d.bolim, d.qator_id) == (row['bolim'], row['id']))
+        qatorlar.append({**row, 'dalil': serialize(dalil) if dalil else None, 'yuborilgan': soni, 'bugun': today})
     return Response({
         'reja': {'id': reja.id, 'oquvYili': reja.oquv_yili, 'status': reja.status},
         'qatorlar': qatorlar,

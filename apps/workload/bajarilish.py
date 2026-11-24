@@ -77,7 +77,8 @@ def compute(reja, dalillar):
 
     dalillar — shu rejaga tegishli IshDalili ro'yxati.
     """
-    by_row = {(d.bolim, d.qator_id): d for d in dalillar}
+    # Bitta rejadagi ishga bir nechta dalil bo'lishi mumkin — birortasi qabul qilinsa, ish bajarilgan
+    accepted_rows = {(d.bolim, d.qator_id) for d in dalillar if d.holat == 'qabul_qilindi'}
     rows = plan_rows(reja)
     bolimlar = []
     total_hours = done_hours = Decimal('0')
@@ -85,8 +86,7 @@ def compute(reja, dalillar):
     for key, _, label in SECTIONS:
         section_rows = [r for r in rows if r['bolim'] == key]
         hours = sum((Decimal(str(r['rejaSoat'])) for r in section_rows), Decimal('0'))
-        accepted = [r for r in section_rows
-                    if (d := by_row.get((key, r['id']))) is not None and d.holat == 'qabul_qilindi']
+        accepted = [r for r in section_rows if (key, r['id']) in accepted_rows]
         acc_hours = sum((Decimal(str(r['rejaSoat'])) for r in accepted), Decimal('0'))
         foiz = _percent(acc_hours, hours) if hours else _percent(len(accepted), len(section_rows))
         bolimlar.append({
