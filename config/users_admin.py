@@ -140,8 +140,11 @@ def _int_or_error(value):
         return -1
 
 
-def _validate_role(data, idx, current_kafedra_ids):
-    """Rol va unga kerakli kafedra/fakultetni tekshiradi: (rol, kafedra_id, fakultet_id)."""
+def _validate_role(data, idx, current_kafedra_ids, teacher_id=None):
+    """Rol va unga kerakli kafedra/fakultetni tekshiradi: (rol, kafedra_id, fakultet_id).
+
+    Har bir fakultetda bitta dekan, har bir kafedrada bitta mudir: o'rin band bo'lsa — rad etiladi
+    (avval amaldagi dekan/mudirni boshqa rolga o'tkazish kerak)."""
     rol = data.get('rol') or 'oqituvchi'
     if rol not in ROLLAR:
         raise _Abort(_bad('rol', "Rol noto'g'ri. Mumkin: " + ', '.join(ROLLAR)))
@@ -157,6 +160,18 @@ def _validate_role(data, idx, current_kafedra_ids):
         kafedra_id = current_kafedra_ids[0]
     if rol == 'dekan' and fakultet_id is None:
         raise _Abort(_bad('fakultetId', 'Fakultetni tanlang.'))
+    if rol == 'kafedra_mudiri':
+        band = idx.dept_by_id[kafedra_id].head_of_department_id
+        if band and band != teacher_id:
+            fio = getattr(Teacher.objects.filter(pk=band).first(), 'full_name', '')
+            raise _Abort(_bad('kafedraId', f"Bu kafedraga mudir allaqachon tayinlangan: {fio}. "
+                                           "Avval uni boshqa rolga o'tkazing."))
+    if rol == 'dekan':
+        band = idx.fac_by_id[fakultet_id].dean_id
+        if band and band != teacher_id:
+            fio = getattr(Teacher.objects.filter(pk=band).first(), 'full_name', '')
+            raise _Abort(_bad('fakultetId', f"Bu fakultetga dekan allaqachon tayinlangan: {fio}. "
+                                            "Avval uni boshqa rolga o'tkazing."))
     return rol, kafedra_id, fakultet_id
 
 
@@ -318,11 +333,13 @@ def foydalanuvchilar(request):
         if (teacher is not None and teacher.user_id) or User.objects.filter(email__iexact=email).exists():
             raise _Abort(_bad('pochta', 'Bu pochta bilan hisob allaqachon mavjud.'))
         lavozim = _lavozim(data, teacher.position if teacher else TeacherPosition.TEACHER)
-        rol, kafedra_id, fakultet_id = _validate_role(data, idx, idx.members.get(teacher.id, []) if teacher else [])
+        rol, kafedra_id, fakultet_id = _validate_role(data, idx, idx.members.get(teacher.id, []) if teacher else [],
+                                                      teacher.id if teacher else None)
         telefon = str(data.get('telefon') or '').strip()
         with atomic():
             if teacher is None:
-                teacher = Teacher.objects.create(full_name=fio, email=email, position=lavozim, phone_number=telefon)
+                teacher = Teacher.objects.create(full_name=fio, email=email, position=lavozim, phone_number=telefon,
+                                                 faqat_xodim=True)
             else:
                 teacher.full_name = fio
                 teacher.position = lavozim
@@ -370,7 +387,7 @@ def foydalanuvchi(request, teacher_id):
             raise _Abort(_bad('pochta', 'Kirish hisobi uchun pochtani kiriting.'))
         role_args = None
         if 'rol' in data:
-            role_args = _validate_role(data, idx, idx.members.get(teacher.id, []))
+            role_args = _validate_role(data, idx, idx.members.get(teacher.id, []), teacher.id)
         lavozim = _lavozim(data, teacher.position) if 'lavozim' in data else None
         with atomic():
             if 'fio' in data:

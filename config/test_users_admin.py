@@ -60,18 +60,24 @@ class UsersAdminTests(StoreTestCase):
         # Xato bo'lgan urinishlar hech narsa qoldirmaydi
         self.assertEqual(User.objects.filter(email__iexact='anvar@uni.test').count(), 1)
 
-    def test_role_change_moves_head_and_reports_replaced(self):
+    def test_head_slot_is_unique_until_freed(self):
         first = self.create(pochta='a@uni.test', rol='kafedra_mudiri').data
-        second = self.create(pochta='b@uni.test', rol='kafedra_mudiri').data
-        self.assertEqual(len(second['almashtirildi']), 1)
+        # Kafedrada mudir bor — ikkinchi odamga shu rol berilmaydi (yaratishda ham, tahrirlashda ham)
+        blocked = self.create(pochta='b@uni.test', rol='kafedra_mudiri')
+        self.assertEqual(blocked.status_code, 400)
+        self.assertIn('kafedraId', blocked.data)
+        second = self.create(pochta='b@uni.test').data
+        res = self.client.patch(f"{URL}/{second['id']}", {'rol': 'kafedra_mudiri', 'kafedraId': self.dep1.id}, format='json')
+        self.assertEqual(res.status_code, 400)
         self.dep1.refresh_from_db()
-        self.assertEqual(self.dep1.head_of_department_id, second['id'])
-        self.assertEqual(self.client.get(f"{URL}/{first['id']}").data['rol'], 'oqituvchi')
-        # Mudirni oddiy o'qituvchiga tushirish — kafedra mudirsiz qoladi
-        res = self.client.patch(f"{URL}/{second['id']}", {'rol': 'oqituvchi'}, format='json')
+        self.assertEqual(self.dep1.head_of_department_id, first['id'])
+        # Mudirni oddiy o'qituvchiga tushirish — o'rin bo'shaydi va boshqaga berish mumkin
+        res = self.client.patch(f"{URL}/{first['id']}", {'rol': 'oqituvchi'}, format='json')
         self.assertEqual(res.data['rol'], 'oqituvchi')
         self.dep1.refresh_from_db()
         self.assertIsNone(self.dep1.head_of_department_id)
+        res = self.client.patch(f"{URL}/{second['id']}", {'rol': 'kafedra_mudiri', 'kafedraId': self.dep1.id}, format='json')
+        self.assertEqual((res.status_code, res.data['rol']), (200, 'kafedra_mudiri'))
 
     def test_password_set_by_admin_and_changed_by_user(self):
         row = self.create().data
@@ -116,6 +122,13 @@ class UsersAdminTests(StoreTestCase):
         self.assertEqual(self.client.patch(f'{URL}/{teacher.id}', {'rol': 'dekan'}, format='json').status_code, 400)
         self.assertEqual(self.create(pochta='admin@t.test').status_code, 400)
         self.assertEqual(User.objects.filter(email__iexact='admin@t.test').count(), 1)
+
+    def test_staff_added_here_hidden_from_teacher_list(self):
+        created = self.create(pochta='dekan.x@uni.test').data
+        ids = [t['id'] for t in self.client.get('/api/crud/oqituvchilar/').data]
+        self.assertNotIn(created['id'], ids)
+        # Foydalanuvchilar ro'yxatida esa ko'rinadi
+        self.assertIn(created['id'], [r['id'] for r in self.client.get(URL).data])
 
 
 class HeadAccountsTests(StoreTestCase):

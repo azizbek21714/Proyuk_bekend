@@ -46,6 +46,9 @@ class TeacherViewSet(ODMModelViewSet):
         # Stavka (rate)
         if params.get('rate'):
             qs = qs.filter(rate=params['rate'])
+        # Foydalanuvchilar bo'limidan qo'shilgan xodimlar o'qituvchilar ro'yxatida chiqmaydi
+        if getattr(self, 'action', None) == 'list':
+            qs = qs.filter_fn(lambda t: not getattr(t, 'faqat_xodim', False))
         return qs.distinct()
 
     def _check_fields(self, serializer):

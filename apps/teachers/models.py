@@ -51,6 +51,9 @@ class Teacher(odm.Model):
     rate = odm.CharField(max_length=50, choices=TeacherRate.choices, default=TeacherRate.RATE_1)
     email = odm.EmailField(max_length=255, blank=True)
     phone_number = odm.CharField(max_length=50, blank=True)
+    # "Foydalanuvchilar va rollar"dan qo'shilgan rahbar/xodim (dekan, o'quv bo'limi va h.k.):
+    # o'qituvchilar ro'yxatida ko'rsatilmaydi
+    faqat_xodim = odm.BooleanField(default=False)
     edited_at = odm.DateTimeField(auto_now=True)
     created_at = odm.DateTimeField(auto_now_add=True)
 
