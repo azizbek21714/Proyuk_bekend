@@ -10,7 +10,7 @@ from rest_framework.response import Response
 
 from apps.accounts.models import User, Xabar
 from apps.accounts.roles import user_scope
-from config import fakultet_views
+from config import fakultet_views, tizim_views
 from config.permissions import IsApplicationAdmin, scope_filter
 
 
@@ -304,4 +304,5 @@ dashboard_patterns = [
     path('rol/kafedralar/', fakultet_views.rol_kafedralar),
     path('rol/guruhlar/', fakultet_views.rol_guruhlar),
     path('rol/guruhlar/<int:pk>/', fakultet_views.rol_guruh_detail),
+    path('rol/tizim/', tizim_views.tizim_holati),
 ]
