@@ -97,6 +97,13 @@ def rol_dashboard(request):
     if oquv:
         rejalar = rejalar.filter(oquv_yili=oquv)
     rejalar = list(rejalar)
+    teachers_count = teachers.count()
+    # ?kafedraId= — bosh sahifadagi kafedra filtri (rahbar ko'radigan hudud ichida)
+    kaf = request.query_params.get('kafedraId')
+    if kaf and str(kaf).isdigit():
+        kaf = int(kaf)
+        rejalar = [r for r in rejalar if r.department_id == kaf]
+        teachers_count = sum(1 for t in teachers if kaf in mapping.get(t.id, []))
 
     holatlar = {}
     bar, past = [], 0
@@ -121,7 +128,7 @@ def rol_dashboard(request):
     return Response({
         'scope': scope_obj.as_dict(),
         'stats': {
-            'jamiOqituvchilar': teachers.count(),
+            'jamiOqituvchilar': teachers_count,
             'jamiRejalar': len(rejalar),
             'rejaHolatlari': holatlar,
             'kutilayotganTasdiqlar': len(kutilayotgan),
@@ -161,8 +168,13 @@ def rol_rejalar(request):
     approvals = {}
     for a in Approval.objects.all():
         approvals.setdefault(a.reja_id, {})[a.stage] = a
+    from apps.departments.models import OTM, Faculty
+    faculties = {f.id: f for f in Faculty.objects.all()}
+    otms = {o.id: o for o in OTM.objects.all()}
     rows = []
     for r in rejalar:
+        fac = faculties.get(r.department.faculty_id) if r.department else None
+        otm = otms.get(fac.otm_id) if fac else None
         nxt = next_approval(r)
         mine = bool(nxt and can_act(request.user, r, nxt.stage))
         if holat == 'menga' and not mine:
@@ -175,6 +187,11 @@ def rol_rejalar(request):
             'oqituvchiId': r.teacher_id,
             'kafedraId': r.department_id,
             'kafedraNomi': r.department.name if r.department else '',
+            'fakultetId': fac.id if fac else None,
+            'fakultetNomi': fac.name if fac else '',
+            'otmId': otm.id if otm else None,
+            'otmNomi': otm.name if otm else '',
+            'stavka': r.teacher.rate if r.teacher else '',
             'oquvYili': r.oquv_yili,
             'status': r.status,
             # Shakllangan yuklama soati (diagramma bilan bir xil hisob)

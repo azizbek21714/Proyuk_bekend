@@ -31,10 +31,19 @@ def _rejalar(request, oquv_yili):
         qs = qs.filter(department_id=p['kafedraId'])
     if p.get('fakultetId'):
         qs = qs.filter(department__faculty_id=p['fakultetId'])
-    return list(qs)
+    rows = list(qs)
+    if p.get('otmId'):
+        from apps.departments.models import Faculty
+        fak_ids = {f.id for f in Faculty.objects.filter(otm_id=p['otmId'])}
+        rows = [r for r in rows if r.department and r.department.faculty_id in fak_ids]
+    if p.get('stavka'):
+        rows = [r for r in rows if r.teacher and r.teacher.rate == p['stavka']]
+    return rows
 
 
-def _row(reja, frozen, dalillar_by_reja):
+def _row(reja, frozen, dalillar_by_reja, faculties=None, otms=None):
+    fac = (faculties or {}).get(reja.department.faculty_id) if reja.department else None
+    otm = (otms or {}).get(fac.otm_id) if fac else None
     natija = frozen.natija if frozen is not None else compute(reja, dalillar_by_reja.get(reja.id, []))
     return {
         'rejaId': reja.id,
@@ -43,6 +52,11 @@ def _row(reja, frozen, dalillar_by_reja):
         'lavozim': reja.teacher.position if reja.teacher else '',
         'kafedraId': reja.department_id,
         'kafedraNomi': reja.department.name if reja.department else '',
+        'fakultetId': fac.id if fac else None,
+        'fakultetNomi': fac.name if fac else '',
+        'otmId': otm.id if otm else None,
+        'otmNomi': otm.name if otm else '',
+        'stavka': reja.teacher.rate if reja.teacher else '',
         'yopilgan': frozen is not None,
         **natija,
     }
@@ -56,7 +70,10 @@ def build_report(request, oquv_yili):
         if d.reja_id in ids:
             dalillar_by_reja.setdefault(d.reja_id, []).append(d)
     frozen = {n.teacher_id: n for n in YillikNatija.objects.filter(oquv_yili=oquv_yili)}
-    rows = [_row(r, frozen.get(r.teacher_id), dalillar_by_reja) for r in rejalar]
+    from apps.departments.models import OTM, Faculty
+    faculties = {f.id: f for f in Faculty.objects.all()}
+    otms = {o.id: o for o in OTM.objects.all()}
+    rows = [_row(r, frozen.get(r.teacher_id), dalillar_by_reja, faculties, otms) for r in rejalar]
     rows.sort(key=lambda r: (r['kafedraNomi'], r['fio']))
     return rows
 
