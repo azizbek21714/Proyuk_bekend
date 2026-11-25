@@ -100,6 +100,11 @@ class Group(odm.Model):
     study_language = odm.CharField(max_length=10, choices=StudyLanguage.choices, default=StudyLanguage.UZ)
     oquv_yili = odm.CharField(max_length=20, blank=True, default='')
     students = odm.IntegerField(positive=True, default=0)
+    # Ta'lim yo'nalishi (masalan "60610500 – Kompyuter injiniringi"), guruh sardori (shu guruh talabasi)
+    # va murabbiyi (o'qituvchi). Dekan, kafedra mudiri va admin belgilaydi.
+    yonalish = odm.CharField(max_length=255, blank=True, default='')
+    sardor_id = odm.IntegerField(positive=True, null=True)
+    murabbiy_id = odm.IntegerField(positive=True, null=True)
     edited_at = odm.DateTimeField(auto_now=True)
     created_at = odm.DateTimeField(auto_now_add=True)
 
