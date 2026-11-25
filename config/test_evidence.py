@@ -179,3 +179,20 @@ class EvidenceFormTests(EvidenceTests):
         again = self.upload(self.oqit, self.reja, dalilId=d['id'], name='yangi.pdf')
         self.assertEqual(again.status_code, 201, again.data)
         self.assertEqual((again.data['id'], again.data['holat'], len(again.data['fayllar'])), (d['id'], 'kafedrada', 2))
+
+    def test_amalda_value_for_scientific_rows(self):
+        from types import SimpleNamespace as NS
+        from apps.workload.evidence_views import amalda_qiymat
+        scopus = {'bolim': 'ilmiy', 'scopus': '0.25'}
+        respub = {'bolim': 'ilmiy', 'scopus': '', 'respub': '2'}
+        ds = [NS(holat='kafedrada', hammualliflar=4), NS(holat='qabul_qilindi', hammualliflar=3),
+              NS(holat='rad_etildi', hammualliflar=1), NS(holat='kafedrada', hammualliflar=None)]
+        self.assertEqual(amalda_qiymat(scopus, ds), round(1 / 4 + 1 / 3 + 1, 2))
+        self.assertEqual(amalda_qiymat(respub, ds), 3)
+        self.assertIsNone(amalda_qiymat(respub, []))
+        self.assertIsNone(amalda_qiymat({'bolim': 'uslubiy'}, ds))
+        self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='A')
+        self.upload(self.oqit, self.reja, qator='i1', bolim='ilmiy', ishNomi='B')
+        res = self.as_(self.oqit).get('/api/teacher/bajarilgan-ishlar/')
+        row = next(q for q in res.data['qatorlar'] if q['id'] == 'i1')
+        self.assertEqual(row['amalda'], 2)

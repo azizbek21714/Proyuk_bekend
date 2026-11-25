@@ -365,6 +365,22 @@ def _teacher_reja(scope, reja_id=None, oquv_yili=None):
     return qs.order_by('-oquv_yili', '-id').first()
 
 
+def amalda_qiymat(row, dalillar):
+    """Ilmiy ish bo'yicha amalda bajarilgan qiymat (rad etilganlar hisobga olinmaydi).
+
+    Scopus/WoS: har bir maqola 1 / hammualliflar soni, yig'indi 2 xonagacha yaxlitlanadi.
+    Respublika: yuklangan ishlar soni. Boshqa bo'limlar uchun None.
+    """
+    if row['bolim'] != 'ilmiy':
+        return None
+    faol = [d for d in dalillar if d.holat != 'rad_etildi']
+    if not faol:
+        return None
+    if row.get('scopus'):
+        return round(sum(1 / max(d.hammualliflar or 1, 1) for d in faol), 2)
+    return len(faol)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def teacher_ishlar(request):
@@ -387,8 +403,9 @@ def teacher_ishlar(request):
     qatorlar = []
     for row in plan_rows(reja):
         dalil = by_row.get((row['bolim'], row['id']))
-        soni = sum(1 for d in dalillar_list if (d.bolim, d.qator_id) == (row['bolim'], row['id']))
-        qatorlar.append({**row, 'dalil': serialize(dalil) if dalil else None, 'yuborilgan': soni, 'bugun': today})
+        row_dalillar = [d for d in dalillar_list if (d.bolim, d.qator_id) == (row['bolim'], row['id'])]
+        qatorlar.append({**row, 'dalil': serialize(dalil) if dalil else None, 'yuborilgan': len(row_dalillar),
+                         'amalda': amalda_qiymat(row, row_dalillar), 'bugun': today})
     return Response({
         'reja': {'id': reja.id, 'oquvYili': reja.oquv_yili, 'status': reja.status},
         'qatorlar': qatorlar,
