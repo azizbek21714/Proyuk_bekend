@@ -93,6 +93,22 @@ def tizim_holati(request):
     teacher_by_id = {t.id: t for t in Teacher.objects.all()}
     holat = {'kam': 0, 'meyorda': 0, 'kop': 0}
     fak_yuklama = {f.id: {'id': f.id, 'nomi': f.name, 'kam': 0, 'meyorda': 0, 'kop': 0} for f in faculties}
+    # Diagramma kesimi filtrga qarab: hech narsa tanlanmasa — OTMlar, OTM tanlansa — fakultetlar,
+    # fakultet (yoki kafedra) tanlansa — kafedralar
+    if fak_id is not None or kaf_id is not None:
+        kesim_turi = 'kafedra'
+        kesim = {d.id: {'id': d.id, 'nomi': d.name, 'qisqa': '', 'kam': 0, 'meyorda': 0, 'kop': 0} for d in deps}
+        kesim_of = lambda r: r.department_id  # noqa: E731
+    elif otm_id is not None:
+        kesim_turi = 'fakultet'
+        kesim = {f.id: {'id': f.id, 'nomi': f.name, 'qisqa': '', 'kam': 0, 'meyorda': 0, 'kop': 0} for f in faculties}
+        kesim_of = lambda r: dep_faculty.get(r.department_id)  # noqa: E731
+    else:
+        kesim_turi = 'otm'
+        kesim = {o.id: {'id': o.id, 'nomi': o.name, 'qisqa': o.short_name or '', 'kam': 0, 'meyorda': 0, 'kop': 0}
+                 for o in otms}
+        fac_otm = {f.id: f.otm_id for f in Faculty.objects.all()}
+        kesim_of = lambda r: fac_otm.get(dep_faculty.get(r.department_id))  # noqa: E731
     voronka = {'loyiha': 0, 'kafedra': 0, 'dekan': 0, 'oquv_bolimi': 0, 'tasdiqlangan': 0, 'rad_etilgan': 0}
     shakllangan = set()
     for r in rejalar:
@@ -106,6 +122,9 @@ def tizim_holati(request):
             fak = fak_yuklama.get(dep_faculty.get(r.department_id))
             if fak:
                 fak[level] += 1
+            row = kesim.get(kesim_of(r))
+            if row:
+                row[level] += 1
         if r.status == 'tekshiruvda':
             nxt = next_approval(r)
             voronka[nxt.stage if nxt else 'kafedra'] = voronka.get(nxt.stage if nxt else 'kafedra', 0) + 1
@@ -143,6 +162,8 @@ def tizim_holati(request):
             'shakllangan': len(shakllangan & teacher_ids) if filtered else len(shakllangan),
             **holat,
             'fakultetlar': sorted(fak_yuklama.values(), key=lambda f: f['nomi']),
+            'kesimTuri': kesim_turi,
+            'kesim': sorted(kesim.values(), key=lambda k: k['nomi']),
         },
         'rejalar': {'jami': jami_rejalar, 'voronka': voronka},
         'muammolar': muammolar,

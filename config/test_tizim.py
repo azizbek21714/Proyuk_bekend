@@ -57,3 +57,11 @@ class TizimHolatiTests(StoreTestCase):
         problems = {p['key']: p['soni'] for p in d['muammolar']}
         self.assertEqual((problems['mudirsiz_kafedra'], problems['talabasiz_guruh']), (0, 0))
         self.assertEqual(d['rollar']['admin'], 0)
+
+    def test_workload_breakdown_level_follows_filter(self):
+        self.assertEqual(self.get(self.admin).data['yuklama']['kesimTuri'], 'otm')
+        otm_id = self.fac1.otm_id
+        d = self.get(self.admin, otmId=otm_id).data['yuklama']
+        self.assertEqual((d['kesimTuri'], sorted(k['nomi'] for k in d['kesim'])), ('fakultet', ['Iqtisod', 'KIF']))
+        d = self.get(self.admin, fakultetId=self.fac1.id).data['yuklama']
+        self.assertEqual((d['kesimTuri'], [k['nomi'] for k in d['kesim']]), ('kafedra', ['Dasturlash']))
