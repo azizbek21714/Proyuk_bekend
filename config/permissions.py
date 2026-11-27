@@ -23,6 +23,9 @@ def limit_to_own(queryset, user, teacher_lookup='teacher'):
     return queryset.filter(**{field: user})
 
 
+from apps.accounts.roles import UNIT_ROLES  # noqa: E402
+
+
 def _scope(user):
     from apps.accounts.roles import user_scope
     return user_scope(user)
@@ -31,15 +34,15 @@ def _scope(user):
 def scope_filter(queryset, user, departments_of=None, teacher_of=None, teacher_lookup=None):
     """Rolga qarab querysetni cheklaydi.
 
-    admin / o'quv bo'limi — hammasi;
-    dekan / kafedra mudiri — departments_of(obj) hududdagi kafedralar bilan kesishsa
+    admin — hammasi;
+    o'quv bo'limi / dekan / kafedra mudiri — departments_of(obj) hududdagi kafedralar bilan kesishsa
         (yoki teacher_of(obj) foydalanuvchining o'zi bo'lsa);
     o'qituvchi — avvalgidek: teacher_lookup berilgan bo'lsa faqat o'ziniki, aks holda o'zgarishsiz.
     """
     scope = _scope(user)
     if scope.is_global:
         return queryset
-    if scope.role in ('dekan', 'kafedra_mudiri'):
+    if scope.role in UNIT_ROLES:
         allowed = scope.department_ids
         own = scope.teacher_id
 

@@ -1,7 +1,7 @@
 """O'quv bo'limi boshqaruv paneli: butun OTM bo'yicha rejalar, yuklama, ijro va ilmiy salohiyat.
 
 GET /api/dashboard/rol/oquv-bolimi/?oquvYili=&otmId=&fakultetId=&kafedraId=
-Ruxsat: o'quv bo'limi va administrator.
+Ruxsat: o'quv bo'limi (faqat o'z OTMi) va administrator.
 """
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -64,9 +64,12 @@ def oquv_bolimi_panel(request):
     otm_id, fak_id, kaf_id = _int(p.get('otmId')), _int(p.get('fakultetId')), _int(p.get('kafedraId'))
 
     # --- Hudud: OTM / fakultet / kafedra filtri
-    otms = list(OTM.objects.all())
-    all_faculties = list(Faculty.objects.all())
-    all_deps = list(Department.objects.all())
+    # O'quv bo'limi faqat o'z OTMini ko'radi (admin — hammasini)
+    otms = [o for o in OTM.objects.all() if scope.is_admin or o.id in scope.otm_ids]
+    allowed_otm = {o.id for o in otms}
+    all_faculties = [f for f in Faculty.objects.all() if f.otm_id in allowed_otm]
+    allowed_fac = {f.id for f in all_faculties}
+    all_deps = [d for d in Department.objects.all() if d.faculty_id in allowed_fac]
     faculties = [f for f in all_faculties if (otm_id is None or f.otm_id == otm_id) and (fak_id is None or f.id == fak_id)]
     fac_ids = {f.id for f in faculties}
     deps = [d for d in all_deps if d.faculty_id in fac_ids and (kaf_id is None or d.id == kaf_id)]

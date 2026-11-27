@@ -2,7 +2,7 @@
 
 Rol tartibi (birinchi mos kelgani asosiy rol):
   admin          — superuser yoki 'admin' guruhi: hammasi
-  oquv_bolimi    — 'oquv_bolimi' guruhi: butun OTM
+  oquv_bolimi    — 'oquv_bolimi' guruhi: faqat o'ziga biriktirilgan OTM (User.otm_id) fakultet va kafedralari
   dekan          — o'qituvchi profili Faculty.dean bo'lsa: fakultet(lar) va undagi kafedralar
   kafedra_mudiri — o'qituvchi profili Department.head_of_department bo'lsa: kafedra(lar)
   oqituvchi      — faqat o'zi
@@ -13,8 +13,8 @@ belgilanmagan bo'ladi — bunday foydalanuvchi hech qanday kafedra ma'lumotini k
 from dataclasses import dataclass, field
 
 ROLE_ORDER = ('admin', 'oquv_bolimi', 'dekan', 'kafedra_mudiri', 'oqituvchi')
-GLOBAL_ROLES = ('admin', 'oquv_bolimi')
-UNIT_ROLES = ('dekan', 'kafedra_mudiri')
+GLOBAL_ROLES = ('admin',)
+UNIT_ROLES = ('oquv_bolimi', 'dekan', 'kafedra_mudiri')
 
 
 @dataclass
@@ -27,6 +27,7 @@ class Scope:
     faculty_ids: frozenset = frozenset()      # dekan bo'lgan fakultetlar
     visible_faculty_ids: frozenset = frozenset()
     visible_otm_ids: frozenset = frozenset()
+    otm_ids: frozenset = frozenset()          # o'quv bo'limi bo'lgan OTM(lar)
     label: str = ''
     dept_faculty: dict = field(default_factory=dict)  # kafedra id -> fakultet id (hammasi)
 
@@ -106,17 +107,32 @@ def _build_scope(user):
     roles.append('oqituvchi')
     role = next(r for r in ROLE_ORDER if r in roles)
 
+    # O'quv bo'limi: biriktirilgan OTM (bo'lmasa — xodimning kafedrasi joylashgan OTM)
+    otm_ids = frozenset()
+    if 'oquv_bolimi' in roles:
+        otm = getattr(user, 'otm_id', None)
+        if otm is None and teacher is not None:
+            own = [d.faculty_id for d in departments if teacher.id in set(d.teachers._ids())]
+            otms = {faculty_otm.get(f) for f in own} - {None}
+            otm = next(iter(otms)) if len(otms) == 1 else None
+        otm_ids = frozenset({otm}) if otm is not None else frozenset()
+    otm_department_ids = frozenset(d_id for d_id, f_id in dept_faculty.items() if faculty_otm.get(f_id) in otm_ids)
+
     faculty_ids = frozenset(f.id for f in deaned)
     department_ids = frozenset(
         {d.id for d in headed} | {d_id for d_id, f_id in dept_faculty.items() if f_id in faculty_ids}
+        | otm_department_ids
     )
     visible_faculty_ids = frozenset(faculty_ids | {dept_faculty[d] for d in department_ids})
-    visible_otm_ids = frozenset(faculty_otm[f] for f in visible_faculty_ids if f in faculty_otm)
+    visible_faculty_ids = frozenset(visible_faculty_ids | {f.id for f in faculties if f.otm_id in otm_ids})
+    visible_otm_ids = frozenset({faculty_otm[f] for f in visible_faculty_ids if f in faculty_otm} | otm_ids)
 
     if role == 'admin':
         label = 'Administrator'
     elif role == 'oquv_bolimi':
-        label = "O'quv bo'limi"
+        from apps.departments.models import OTM
+        otm_obj = OTM.objects.filter(pk=next(iter(otm_ids))).first() if otm_ids else None
+        label = f"{otm_obj.short_name or otm_obj.name} o'quv bo'limi" if otm_obj else "O'quv bo'limi"
     elif role == 'dekan':
         label = ', '.join(f'{f.name} dekani' for f in deaned) or 'Dekan'
     elif role == 'kafedra_mudiri':
@@ -128,6 +144,6 @@ def _build_scope(user):
         role=role, roles=roles, teacher=teacher,
         department_ids=department_ids, faculty_ids=faculty_ids,
         headed_department_ids=frozenset(d.id for d in headed),
-        visible_faculty_ids=visible_faculty_ids, visible_otm_ids=visible_otm_ids,
+        visible_faculty_ids=visible_faculty_ids, visible_otm_ids=visible_otm_ids, otm_ids=otm_ids,
         label=label, dept_faculty=dept_faculty,
     )

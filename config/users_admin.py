@@ -21,7 +21,7 @@ from rest_framework.response import Response
 
 from apps.accounts.models import User
 from apps.core.odm import atomic
-from apps.departments.models import Department, Faculty
+from apps.departments.models import OTM, Department, Faculty
 from apps.teachers.models import Teacher, TeacherPosition
 from rest_framework.permissions import BasePermission
 
@@ -81,6 +81,7 @@ class _Index:
     def __init__(self):
         self.departments = list(Department.objects.all())
         self.faculties = list(Faculty.objects.all())
+        self.otm_by_id = {o.id: o for o in OTM.objects.all()}
         self.dept_by_id = {d.id: d for d in self.departments}
         self.fac_by_id = {f.id: f for f in self.faculties}
         self.members, self.headed, self.deaned = {}, {}, {}
@@ -101,7 +102,9 @@ def _row(teacher, user, idx):
     if user is not None and is_application_admin(user):
         rol, unvon = 'admin', 'Administrator'
     elif 'oquv_bolimi' in groups:
-        rol, unvon = 'oquv_bolimi', "O'quv bo'limi"
+        otm = idx.otm_by_id.get(getattr(user, 'otm_id', None))
+        rol = 'oquv_bolimi'
+        unvon = f"{otm.short_name or otm.name} o'quv bo'limi" if otm else "O'quv bo'limi (OTM tanlanmagan)"
     elif deaned:
         rol = 'dekan'
         unvon = ', '.join(f'{idx.fac_by_id[i].name} dekani' for i in deaned)
@@ -128,6 +131,7 @@ def _row(teacher, user, idx):
         'kafedralar': [idx.dept_by_id[i].name for i in kafedralar],
         'mudirKafedraIds': headed,
         'dekanFakultetIds': deaned,
+        'otmId': getattr(user, 'otm_id', None) if 'oquv_bolimi' in groups else None,
     }
 
 
@@ -172,7 +176,18 @@ def _validate_role(data, idx, current_kafedra_ids, teacher_id=None):
             fio = getattr(Teacher.objects.filter(pk=band).first(), 'full_name', '')
             raise _Abort(_bad('fakultetId', f"Bu fakultetga dekan allaqachon tayinlangan: {fio}. "
                                             "Avval uni boshqa rolga o'tkazing."))
-    return rol, kafedra_id, fakultet_id
+    otm_id = None
+    if rol == 'oquv_bolimi':
+        # O'quv bo'limi bitta OTMga tegishli: tanlangan OTM yoki xodim kafedrasining OTMi
+        otm_id = _int_or_error(data.get('otmId'))
+        if otm_id is None:
+            deps = [kafedra_id] if kafedra_id is not None else list(current_kafedra_ids)
+            otms = {getattr(idx.fac_by_id.get(idx.dept_by_id[d].faculty_id), 'otm_id', None)
+                    for d in deps if d in idx.dept_by_id} - {None}
+            otm_id = next(iter(otms)) if len(otms) == 1 else None
+        if otm_id is None or otm_id not in idx.otm_by_id:
+            raise _Abort(_bad('otmId', "O'quv bo'limi qaysi OTMga tegishli ekanini tanlang."))
+    return rol, kafedra_id, fakultet_id, otm_id
 
 
 def _set_membership(teacher, kafedra_id, idx):
@@ -187,7 +202,7 @@ def _set_membership(teacher, kafedra_id, idx):
     idx.dept_by_id[kafedra_id].teachers.add(teacher)
 
 
-def _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx):
+def _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx, otm_id=None):
     """Eski rol belgilarini olib, yangisini qo'yadi. O'rni olingan odamlar ro'yxatini qaytaradi."""
     replaced = []
     for d in idx.departments:
@@ -218,9 +233,11 @@ def _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx):
         groups = [g for g in (user.groups or []) if g not in ROLE_GROUPS]
         if rol == 'oquv_bolimi':
             groups.append('oquv_bolimi')
-        if groups != list(user.groups or []):
+        new_otm = otm_id if rol == 'oquv_bolimi' else None
+        if groups != list(user.groups or []) or getattr(user, 'otm_id', None) != new_otm:
             user.groups = groups
-            user.save(update_fields=['groups'])
+            user.otm_id = new_otm
+            user.save(update_fields=['groups', 'otm_id'])
     elif rol == 'oquv_bolimi':
         raise _Abort(_bad('rol', "O'quv bo'limi roli uchun pochta va parol (kirish hisobi) kerak."))
     return replaced
@@ -333,7 +350,7 @@ def foydalanuvchilar(request):
         if (teacher is not None and teacher.user_id) or User.objects.filter(email__iexact=email).exists():
             raise _Abort(_bad('pochta', 'Bu pochta bilan hisob allaqachon mavjud.'))
         lavozim = _lavozim(data, teacher.position if teacher else TeacherPosition.TEACHER)
-        rol, kafedra_id, fakultet_id = _validate_role(data, idx, idx.members.get(teacher.id, []) if teacher else [],
+        rol, kafedra_id, fakultet_id, otm_id = _validate_role(data, idx, idx.members.get(teacher.id, []) if teacher else [],
                                                       teacher.id if teacher else None)
         telefon = str(data.get('telefon') or '').strip()
         with atomic():
@@ -347,7 +364,7 @@ def foydalanuvchilar(request):
                 teacher.save()
             user = _create_account(teacher, email, data['parol'])
             _set_membership(teacher, kafedra_id, idx)
-            replaced = _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx)
+            replaced = _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx, otm_id)
     except _Abort as exc:
         return exc.response
     return _respond(teacher, status.HTTP_201_CREATED, almashtirildi=replaced)
@@ -421,9 +438,9 @@ def foydalanuvchi(request, teacher_id):
                 if changed:
                     user.save(update_fields=changed)
             if role_args is not None:
-                rol, kafedra_id, fakultet_id = role_args
+                rol, kafedra_id, fakultet_id, otm_id = role_args
                 _set_membership(teacher, kafedra_id, idx)
-                replaced = _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx)
+                replaced = _apply_role(teacher, user, rol, kafedra_id, fakultet_id, idx, otm_id)
     except _Abort as exc:
         return exc.response
     return _respond(teacher, almashtirildi=replaced)

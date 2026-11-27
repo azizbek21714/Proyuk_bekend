@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
-from apps.accounts.roles import user_scope
+from apps.accounts.roles import UNIT_ROLES, user_scope
 from apps.core.drf import ODMModelViewSet
 from config.permissions import require_departments, scope_filter
 from .models import OTM, Faculty, Department
@@ -21,7 +21,7 @@ class OTMViewSet(ODMModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         scope = user_scope(self.request.user)
-        if scope.role in ('dekan', 'kafedra_mudiri'):
+        if scope.role in UNIT_ROLES:
             qs = qs.filter_fn(lambda o: o.id in scope.visible_otm_ids)
         return qs
 
@@ -35,7 +35,7 @@ class OTMViewSet(ODMModelViewSet):
         """OTM → Fakultet → Kafedra daraxt strukturasi"""
         data = []
         scope = user_scope(self.request.user)
-        limited = scope.role in ('dekan', 'kafedra_mudiri')
+        limited = scope.role in UNIT_ROLES
         for otm in OTM.objects.prefetch_related('faculties__departments').all():
             if limited and otm.id not in scope.visible_otm_ids:
                 continue
@@ -100,7 +100,7 @@ class FacultyViewSet(ODMModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         scope = user_scope(self.request.user)
-        if scope.role in ('dekan', 'kafedra_mudiri'):
+        if scope.role in UNIT_ROLES:
             qs = qs.filter_fn(lambda f: f.id in scope.visible_faculty_ids)
         otm_id = self.request.query_params.get('otmId')
         if otm_id:

@@ -66,7 +66,8 @@ def _reviewers(dalil):
         head = dep.head_of_department if dep else None
         return [head.user_id] if head and head.user_id else []
     if dalil.holat == 'oquv_bolimida':
-        return [u.id for u in User.objects.all() if 'oquv_bolimi' in (u.groups or []) and u.is_active]
+        from apps.workload.approval_flow import oquv_bolimi_users
+        return oquv_bolimi_users(dalil.department_id)
     return []
 
 
@@ -80,7 +81,7 @@ def can_review(user, dalil):
         return False
     if dalil.holat == 'kafedrada':
         return 'kafedra_mudiri' in scope.roles and dalil.department_id in scope.headed_department_ids
-    return 'oquv_bolimi' in scope.roles
+    return 'oquv_bolimi' in scope.roles and dalil.department_id in scope.department_ids
 
 
 def _visible(user):

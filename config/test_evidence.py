@@ -29,7 +29,8 @@ class EvidenceTests(StoreTestCase):
         self.dep = Department.objects.create(name='Dasturlash', faculty=fac)
         self.mudir, self.mudir_t = self._teacher('mudir')
         self.oqit, self.oqit_t = self._teacher('oqit')
-        self.oquv = User.objects.create_user('oquv', email='oquv@t.test', password='x', groups=['oquv_bolimi'])
+        self.oquv = User.objects.create_user('oquv', email='oquv@t.test', password='x', groups=['oquv_bolimi'],
+                                             otm_id=otm.id)
         self.dep.head_of_department = self.mudir_t
         self.dep.save()
         self.reja = Reja.objects.create(teacher=self.oqit_t, department=self.dep, oquv_yili='2026-2027',

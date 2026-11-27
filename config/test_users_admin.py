@@ -13,7 +13,7 @@ PAROL = 'Kuchli-Parol-4821'
 class UsersAdminTests(StoreTestCase):
     def setUp(self):
         self.client = APIClient()
-        otm = OTM.objects.create(name='Universitet')
+        self.otm = otm = OTM.objects.create(name='Universitet')
         self.fac = Faculty.objects.create(name='KIF', otm=otm)
         self.dep1 = Department.objects.create(name='Dasturlash', faculty=self.fac)
         self.dep2 = Department.objects.create(name='Tarmoqlar', faculty=self.fac)
@@ -42,7 +42,8 @@ class UsersAdminTests(StoreTestCase):
 
     def test_each_role(self):
         self.create(pochta='d@uni.test', rol='dekan', fakultetId=self.fac.id, kafedraId='')
-        self.create(pochta='o@uni.test', rol='oquv_bolimi', kafedraId='')
+        self.assertEqual(self.create(pochta='o@uni.test', rol='oquv_bolimi', kafedraId='').status_code, 400)  # OTM shart
+        self.assertEqual(self.create(pochta='o@uni.test', rol='oquv_bolimi', kafedraId='', otmId=self.otm.id).status_code, 201)
         self.create(pochta='t@uni.test', rol='oqituvchi')
         self.assertEqual(self.login_role('d@uni.test')['role'], 'dekan')
         self.assertEqual(self.login_role('o@uni.test')['role'], 'oquv_bolimi')

@@ -51,7 +51,13 @@ def stage_approvers(reja, stage):
         faculty = Faculty.objects.filter(pk=dep.faculty_id).first() if dep else None
         dean = faculty.dean if faculty else None
         return [dean.user_id] if dean and dean.user_id else []
-    return [u.id for u in User.objects.all() if 'oquv_bolimi' in (u.groups or []) and u.is_active]
+    return oquv_bolimi_users(reja.department_id)
+
+
+def oquv_bolimi_users(department_id):
+    """Shu kafedra joylashgan OTMning faol o'quv bo'limi xodimlari."""
+    return [u.id for u in User.objects.all()
+            if 'oquv_bolimi' in (u.groups or []) and u.is_active and user_scope(u).has_department(department_id)]
 
 
 def can_act(user, reja, stage):
@@ -61,7 +67,7 @@ def can_act(user, reja, stage):
     if STAGE_ROLE[stage] not in scope.roles:
         return False
     if stage == 'oquv_bolimi':
-        return True
+        return reja.department_id in scope.department_ids
     if scope.teacher_id is not None and reja.teacher_id == scope.teacher_id:
         return False  # o'z rejasini o'zi tasdiqlamaydi
     if stage == 'kafedra':

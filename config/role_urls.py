@@ -33,11 +33,27 @@ def user_roles(request, user_id):
     if 'oquv_bolimi' not in request.data:
         return Response({'oquv_bolimi': ['Bu maydon majburiy.']}, status=status.HTTP_400_BAD_REQUEST)
     groups = [g for g in (user.groups or []) if g != 'oquv_bolimi']
+    otm_id = None
     if str(request.data.get('oquv_bolimi')).lower() in ('1', 'true', 'yes', 'ha'):
+        # O'quv bo'limi bitta OTMga tegishli: berilgan otmId yoki xodim kafedrasining OTMi
+        from apps.departments.models import OTM, Department, Faculty
+        otm_id = request.data.get('otmId')
+        otm_id = int(otm_id) if str(otm_id or '').isdigit() else None
+        teacher = getattr(user, 'teacher_profile', None)
+        if otm_id is None and teacher is not None:
+            fac_otm = {f.id: f.otm_id for f in Faculty.objects.all()}
+            otms = {fac_otm.get(d.faculty_id) for d in Department.objects.all()
+                    if teacher.id in set(d.teachers._ids())} - {None}
+            otm_id = next(iter(otms)) if len(otms) == 1 else None
+        if otm_id is None or not OTM.objects.filter(pk=otm_id).exists():
+            return Response({'otmId': ["O'quv bo'limi qaysi OTMga tegishli ekanini aniqlab bo'lmadi. "
+                                       "Xodimni kafedraga biriktiring yoki OTMni tanlang."]},
+                            status=status.HTTP_400_BAD_REQUEST)
         groups.append('oquv_bolimi')
     user.groups = groups
-    user.save(update_fields=['groups'])
-    return Response({'id': user.id, 'oquv_bolimi': 'oquv_bolimi' in groups})
+    user.otm_id = otm_id
+    user.save(update_fields=['groups', 'otm_id'])
+    return Response({'id': user.id, 'oquv_bolimi': 'oquv_bolimi' in groups, 'otmId': otm_id})
 
 
 def _xabar(item):

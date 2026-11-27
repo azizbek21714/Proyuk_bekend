@@ -1,6 +1,6 @@
 from rest_framework.exceptions import PermissionDenied
 
-from apps.accounts.roles import user_scope
+from apps.accounts.roles import UNIT_ROLES, user_scope
 from apps.core.drf import ODMModelViewSet
 from apps.departments.models import Department
 from .models import Teacher
@@ -28,7 +28,7 @@ class TeacherViewSet(ODMModelViewSet):
         # faqat o'z profilini (rahbarlar — o'z hududidagilarni) ko'radi.
         scope = user_scope(self.request.user)
         qs = super().get_queryset()
-        if scope.role in ('dekan', 'kafedra_mudiri'):
+        if scope.role in UNIT_ROLES:
             mapping = teacher_departments()
             qs = scope_filter(qs, self.request.user,
                               departments_of=lambda t: mapping.get(t.id, []),

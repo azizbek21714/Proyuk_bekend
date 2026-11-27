@@ -48,6 +48,8 @@ class User(odm.Model):
     is_staff = odm.BooleanField(default=False)
     is_superuser = odm.BooleanField(default=False)
     groups = odm.JSONField(default=list)
+    # O'quv bo'limi roli: foydalanuvchi qaysi OTMning o'quv bo'limi (faqat shu OTMni nazorat qiladi)
+    otm_id = odm.IntegerField(null=True)
     date_joined = odm.DateTimeField(null=True)
     last_login = odm.DateTimeField(null=True)
 

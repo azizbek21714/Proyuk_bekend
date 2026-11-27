@@ -21,6 +21,8 @@ class RoleScopeTests(StoreTestCase):
 
         self.admin = User.objects.create_superuser('admin', email='admin@t.test', password='x')
         self.oquv = self._user('oquv', groups=['oquv_bolimi'])
+        self.oquv.otm_id = otm.id
+        self.oquv.save()
         self.mudir, self.mudir_t = self._teacher('mudir', self.dep_a1)
         self.dekan, self.dekan_t = self._teacher('dekan', self.dep_a2)
         self.oqit, self.oqit_t = self._teacher('oqit', self.dep_a1)
