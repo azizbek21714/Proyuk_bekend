@@ -43,6 +43,14 @@ def _start_year(oquv):
     return int(head) if head.isdigit() else None
 
 
+def _oquv_yillari(dep_ids):
+    """Filtr uchun o'quv yillari: tizimdagi o'quv yillari va shu hududdagi rejalar yillari (yangisi birinchi)."""
+    from apps.workload.models import AcademicYear, Reja
+    years = {y.name for y in AcademicYear.objects.all() if y.name}
+    years |= {r.oquv_yili for r in Reja.objects.all() if r.oquv_yili and r.department_id in dep_ids}
+    return sorted(years, reverse=True)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def oquv_bolimi_panel(request):
@@ -254,6 +262,7 @@ def oquv_bolimi_panel(request):
         'salohiyat': salohiyat,
         'muammolar': muammolar,
         'filtr': {
+            'oquvYillari': _oquv_yillari(dep_ids),
             'otmlar': [{'id': o.id, 'nomi': o.short_name or o.name} for o in otms],
             'fakultetlar': [{'id': f.id, 'nomi': f.name, 'otmId': f.otm_id} for f in all_faculties],
             'kafedralar': [{'id': d.id, 'nomi': d.name, 'fakultetId': d.faculty_id} for d in all_deps],

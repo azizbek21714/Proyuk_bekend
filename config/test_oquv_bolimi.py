@@ -148,3 +148,23 @@ class OquvBolimiOtmIsolationTests(StoreTestCase):
         self.assertNotEqual(self.as_(self.oquv_a).post(url(self.reja_b), {'qaror': 'tasdiqlash'}, format='json').status_code, 200)
         self.assertEqual(self.as_(self.oquv_a).post(url(self.reja_a), {'qaror': 'tasdiqlash'}, format='json').status_code, 200)
         self.assertEqual(stage_approvers(self.reja_b, 'oquv_bolimi'), [self.oquv_b.id])
+
+
+class OquvBolimiYearFilterTests(StoreTestCase):
+    def setUp(self):
+        self.client = APIClient()
+        otm = OTM.objects.create(name='U')
+        fac = Faculty.objects.create(name='KIF', otm=otm)
+        dep = Department.objects.create(name='Dasturlash', faculty=fac)
+        self.oquv = User.objects.create_user('oq', email='oq@t.test', password='x', groups=['oquv_bolimi'], otm_id=otm.id)
+        t = Teacher.objects.create(full_name='T', email='t@t.test')
+        dep.teachers.add(t)
+        Reja.objects.create(teacher=t, department=dep, oquv_yili='2025-2026')
+        Reja.objects.create(teacher=t, department=dep, oquv_yili='2026-2027')
+        self.client.force_authenticate(self.oquv)
+
+    def test_years_listed_and_filter_applies(self):
+        d = self.client.get(URL, {'oquvYili': '2025-2026'}).data
+        self.assertEqual(d['filtr']['oquvYillari'], ['2026-2027', '2025-2026'])
+        self.assertEqual(d['kpi']['jamiReja'], 1)
+        self.assertEqual(d['oylar'][0]['yil'], 2025)
