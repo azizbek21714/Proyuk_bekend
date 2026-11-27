@@ -39,6 +39,8 @@ class Reja(odm.Model):
     status = odm.CharField(max_length=30, default='loyiha')
     # Shakllantirilgan reja tafsilotlari (kafedra yuklama_data nusxasi)
     data = odm.JSONField(default=dict)
+    # Tasdiqlashga oxirgi marta yuborilgan vaqt (o'quv bo'limi dinamikasi uchun)
+    yuborilgan_at = odm.DateTimeField(null=True)
     edited_at = odm.DateTimeField(auto_now=True)
     created_at = odm.DateTimeField(auto_now_add=True)
 

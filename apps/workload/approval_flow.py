@@ -101,7 +101,8 @@ def submit(user, reja):
             approval.acted_at = now if auto else None
             approval.save(update_fields=['state', 'comment', 'acted_by', 'acted_at'])
         reja.status = 'tekshiruvda'
-        reja.save(update_fields=['status', 'edited_at'])
+        reja.yuborilgan_at = now
+        reja.save(update_fields=['status', 'yuborilgan_at', 'edited_at'])
     pending = next_approval(reja)
     if pending is not None:
         fio = reja.teacher.full_name if reja.teacher else ''
