@@ -86,6 +86,25 @@ class OquvBolimiPanelTests(StoreTestCase):
         self.assertEqual((d['kesimTuri'], d['kpi']['jamiReja'], d['kpi']['oqituvchi']), ('kafedra', 1, 1))
         self.assertEqual([k['nomi'] for k in d['kesim']], ['Optika'])
 
+    def test_department_selected_breaks_down_by_teacher(self):
+        d = self.get(kafedraId=self.dep_a.id).data
+        self.assertEqual(d['kesimTuri'], 'oqituvchi')
+        self.assertEqual(sorted(k['nomi'] for k in d['kesim']), ['Dekan', 'Mudir', 'Oqit'])
+        oqit = next(k for k in d['kesim'] if k['nomi'] == 'Oqit')
+        self.assertEqual((oqit['rejalar'], oqit['oqituvchi']), (1, 1))
+        self.assertEqual(set(d['soatlar']), {'reja', 'meyor', 'ortiqcha', 'kam'})
+
+    def test_department_ranking(self):
+        self.as_(self.oqit).post(f'/api/crud/rejalar/{self.reja_a.id}/yuborish/')
+        for user in (self.mudir, self.dekan, self.oquv):
+            self.decide(user, self.reja_a)
+        reyting = self.get().data['reyting']
+        self.assertEqual([r['nomi'] for r in reyting], ['Dasturlash', 'Optika'])
+        top = reyting[0]
+        # tasdiqlangan 100% * 0.4 + ijro 0 + ilmiy (2 / 3) * 100 * 0.2
+        self.assertEqual((top['tasdiqFoiz'], top['ball']), (100.0, 53))
+        self.assertEqual(reyting[1]['ball'], 0)
+
     def test_research_capacity(self):
         s = self.get().data['salohiyat']
         self.assertEqual((s['dsc'], s['phd'], s['bachelor']), (1, 1, 2))

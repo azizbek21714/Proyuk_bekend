@@ -97,8 +97,13 @@ def oquv_bolimi_panel(request):
         if a.reja_id in reja_ids:
             approvals.setdefault(a.reja_id, {})[a.stage] = a
 
-    # --- Kesim: filtr tanlanmasa — OTMlar, OTM tanlansa — fakultetlar, fakultet/kafedra tanlansa — kafedralar
-    if fak_id is not None or kaf_id is not None:
+    # --- Kesim: filtr tanlanmasa — OTMlar, OTM tanlansa — fakultetlar, fakultet tanlansa — kafedralar,
+    #     kafedra tanlansa — shu kafedra o'qituvchilari
+    if kaf_id is not None:
+        kesim_turi = 'oqituvchi'
+        kesim = {t.id: {'id': t.id, 'nomi': t.full_name, 'qisqa': (t.full_name or '').split(' ')[0]} for t in teachers}
+        kesim_of = None
+    elif fak_id is not None:
         kesim_turi = 'kafedra'
         kesim = {d.id: {'id': d.id, 'nomi': d.name, 'qisqa': ''} for d in deps}
         kesim_of = lambda dep: dep  # noqa: E731
@@ -110,14 +115,31 @@ def oquv_bolimi_panel(request):
         kesim_turi = 'otm'
         kesim = {o.id: {'id': o.id, 'nomi': o.name, 'qisqa': o.short_name or ''} for o in otms}
         kesim_of = lambda dep: fac_otm.get(dep_faculty.get(dep))  # noqa: E731
+    def _bosh():
+        return {'kam': 0, 'meyorda': 0, 'kop': 0, 'oqituvchi': 0, 'ilmiy': 0, 'rejalar': 0, 'tasdiqlangan': 0,
+                'menda': 0, 'ijroQator': 0, 'ijroQabul': 0,
+                'soatReja': 0.0, 'soatMeyor': 0.0, 'soatOrtiqcha': 0.0, 'soatKam': 0.0}
+
     for row in kesim.values():
-        row.update({'kam': 0, 'meyorda': 0, 'kop': 0, 'oqituvchi': 0, 'rejalar': 0, 'tasdiqlangan': 0,
-                    'menda': 0, 'ijroQator': 0, 'ijroQabul': 0})
+        row.update(_bosh())
+    # Reyting har doim kafedralar bo'yicha
+    reyting = {d.id: {'id': d.id, 'nomi': d.name, **_bosh()} for d in deps}
     for t in teachers:
-        keys = {kesim_of(d) for d in mapping.get(t.id, []) if d in dep_ids}
-        for k in keys:
-            if k in kesim:
-                kesim[k]['oqituvchi'] += 1
+        own = {d for d in mapping.get(t.id, []) if d in dep_ids}
+        keys = {t.id} if kesim_of is None else {kesim_of(d) for d in own}
+        ilmiy = t.degree in ('dsc', 'phd')
+        for key in keys:
+            if key in kesim:
+                kesim[key]['oqituvchi'] += 1
+                kesim[key]['ilmiy'] += ilmiy
+        for d in own:
+            reyting[d]['oqituvchi'] += 1
+            reyting[d]['ilmiy'] += ilmiy
+
+    def kesim_key(reja):
+        if kesim_of is None:
+            return reja.teacher.id if reja.teacher else None
+        return kesim_of(reja.department_id)
 
     # --- Dalillar: qabul qilingan ishlar (ijro) va tekshiruvni kutayotganlar
     accepted_at = {}   # (reja_id, bolim, qator_id) -> qabul qilingan sana
@@ -140,16 +162,19 @@ def oquv_bolimi_panel(request):
     uzoq, kam_list, kop_list = [], [], []
     yuborilgan_sana, tasdiq_sana = [], []
     jami_qator = 0
+    soat_jami = {'reja': 0.0, 'meyor': 0.0, 'ortiqcha': 0.0, 'kam': 0.0}
     for r in rejalar:
-        k = kesim.get(kesim_of(r.department_id))
+        k = kesim.get(kesim_key(r))
+        rk = reyting.get(r.department_id)
+        targets = [x for x in (k, rk) if x]
         stages = approvals.get(r.id, {})
-        if k:
-            k['rejalar'] += 1
+        for x in targets:
+            x['rejalar'] += 1
         # Holat
         if r.status == 'tasdiqlangan':
             holat['tasdiqlangan'] += 1
-            if k:
-                k['tasdiqlangan'] += 1
+            for x in targets:
+                x['tasdiqlangan'] += 1
         elif r.status == 'rad_etilgan':
             holat['rad_etilgan'] += 1
         elif r.status == 'tekshiruvda':
@@ -175,17 +200,24 @@ def oquv_bolimi_panel(request):
             mn, mx = _position_norm(t.position if t else '', r.oquv_yili, t.rate if t else 'rate_1')
             level = 'kam' if soat < Decimal(mn) else ('kop' if soat > Decimal(mx) + 10 else 'meyorda')
             yuk[level] += 1
-            if k:
-                k[level] += 1
+            for x in targets:
+                x[level] += 1
+            # Soatlar: rejalashtirilgan, me'yor (quyi chegara), me'yordan ortiq (soatbay) va yetishmaydigan
+            s_reja, s_min, s_max = float(soat), float(mn), float(mx)
+            ortiq, kam = max(0.0, s_reja - s_max), max(0.0, s_min - s_reja)
+            for bucket, prefix in [(soat_jami, '')] + [(x, 'soat') for x in targets]:
+                for name, val in (('reja', s_reja), ('meyor', s_min), ('ortiqcha', ortiq), ('kam', kam)):
+                    key = f'{prefix}{name.capitalize()}' if prefix else name
+                    bucket[key] += val
             item = {'id': r.id, 'nomi': t.full_name if t else '', 'soat': float(soat), 'min': mn, 'max': mx}
             (kam_list if level == 'kam' else kop_list if level == 'kop' else []).append(item)
         # Ijro
         rows = plan_rows(r)
         jami_qator += len(rows)
         qabul = sum(1 for row in rows if (r.id, row['bolim'], row['id']) in accepted_at)
-        if k:
-            k['ijroQator'] += len(rows)
-            k['ijroQabul'] += qabul
+        for x in targets:
+            x['ijroQator'] += len(rows)
+            x['ijroQabul'] += qabul
         # Dinamika uchun sanalar
         if r.status != 'loyiha':
             sent = r.yuborilgan_at or min((a.acted_at for a in stages.values() if a.acted_at), default=None) or r.edited_at
@@ -228,8 +260,17 @@ def oquv_bolimi_panel(request):
 
     shakllangan = sum(yuk.values())
     jami_qabul = len(accepted_at)
-    for row in kesim.values():
+    for row in list(kesim.values()) + list(reyting.values()):
         row['ijroFoiz'] = round(row['ijroQabul'] / row['ijroQator'] * 100, 1) if row['ijroQator'] else 0.0
+        for key in ('soatReja', 'soatMeyor', 'soatOrtiqcha', 'soatKam'):
+            row[key] = round(row[key], 1)
+    # Kafedralar reytingi: tasdiqlangan rejalar 40%, ijro 40%, ilmiy darajalilar 20%
+    for row in reyting.values():
+        tasdiq = row['tasdiqlangan'] / row['rejalar'] * 100 if row['rejalar'] else 0.0
+        ilmiy = row['ilmiy'] / row['oqituvchi'] * 100 if row['oqituvchi'] else 0.0
+        row['tasdiqFoiz'] = round(tasdiq, 1)
+        row['ilmiyFoiz'] = round(ilmiy, 1)
+        row['ball'] = round(0.4 * tasdiq + 0.4 * row['ijroFoiz'] + 0.2 * ilmiy)
 
     named = lambda items: sorted(items, key=lambda x: x['nomi'])[:8]  # noqa: E731
     muammolar = [
@@ -257,6 +298,9 @@ def oquv_bolimi_panel(request):
         'yuklama': yuk,
         'kesimTuri': kesim_turi,
         'kesim': sorted(kesim.values(), key=lambda k: k['nomi']),
+        'soatlar': {key: round(val, 1) for key, val in soat_jami.items()},
+        'reyting': sorted((r for r in reyting.values() if r['oqituvchi'] or r['rejalar']),
+                          key=lambda r: (-r['ball'], r['nomi'])),
         'haftalar': haftalar,
         'oylar': oylar,
         'salohiyat': salohiyat,
